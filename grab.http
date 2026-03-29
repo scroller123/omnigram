@@ -1,0 +1,32 @@
+POST http://localhost:8080/api/grab
+Content-Type: application/json
+
+{
+    "username": "rukzakilnur"
+}
+
+###
+
+###
+GET http://localhost:8080/api/dialogs
+
+###
+
+POST http://localhost:8080/api/grab_by_id
+
+{
+    "chat_id": 1637993714
+}
+####
+POST http://localhost:8080/api/search
+
+{
+    "query": "какая стоимость страховки на авто на рф номерах в сербии?"
+}
+
+####
+POST http://localhost:8080/api/search
+
+{
+    "query": "пускают ли авто через грецию?"
+}

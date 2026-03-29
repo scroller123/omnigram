@@ -1,0 +1,51 @@
+package tg // import "github.com/gotd/td/tg"
+
+type MessagesCheckChatInviteRequest struct {
+	// Invite hash from chat invite deep link »¹.
+	//
+	// Links:
+	//  1) https://core.telegram.org/api/links#chat-invite-links
+	Hash string
+}
+    MessagesCheckChatInviteRequest represents TL type
+    `messages.checkChatInvite#3eadb1bb`. Check the validity of a chat invite
+    link and get basic info about it
+
+    See https://core.telegram.org/method/messages.checkChatInvite for reference.
+
+func (c *MessagesCheckChatInviteRequest) Decode(b *bin.Buffer) error
+    Decode implements bin.Decoder.
+
+func (c *MessagesCheckChatInviteRequest) DecodeBare(b *bin.Buffer) error
+    DecodeBare implements bin.BareDecoder.
+
+func (c *MessagesCheckChatInviteRequest) Encode(b *bin.Buffer) error
+    Encode implements bin.Encoder.
+
+func (c *MessagesCheckChatInviteRequest) EncodeBare(b *bin.Buffer) error
+    EncodeBare implements bin.BareEncoder.
+
+func (c *MessagesCheckChatInviteRequest) FillFrom(from interface {
+	GetHash() (value string)
+})
+    FillFrom fills MessagesCheckChatInviteRequest from given interface.
+
+func (c *MessagesCheckChatInviteRequest) GetHash() (value string)
+    GetHash returns value of Hash field.
+
+func (c *MessagesCheckChatInviteRequest) String() string
+    String implements fmt.Stringer.
+
+func (*MessagesCheckChatInviteRequest) TypeID() uint32
+    TypeID returns type id in TL schema.
+
+    See https://core.telegram.org/mtproto/TL-tl#remarks.
+
+func (c *MessagesCheckChatInviteRequest) TypeInfo() tdp.Type
+    TypeInfo returns info about TL type.
+
+func (*MessagesCheckChatInviteRequest) TypeName() string
+    TypeName returns name of type in TL schema.
+
+func (c *MessagesCheckChatInviteRequest) Zero() bool
+

@@ -1,0 +1,116 @@
+package tg // import "github.com/gotd/td/tg"
+
+type Chat struct {
+	// Flags, see TL conditional fields¹
+	//
+	// Links:
+	//  1) https://core.telegram.org/mtproto/TL-combinators#conditional-fields
+	Flags bin.Fields
+	// Whether the current user is the creator of the group
+	Creator bool
+	// Whether the current user has left the group
+	Left bool
+	// Whether the group was migrated¹
+	//
+	// Links:
+	//  1) https://core.telegram.org/api/channel
+	Deactivated bool
+	// Whether a group call is currently active
+	CallActive bool
+	// Whether there's anyone in the group call
+	CallNotEmpty bool
+	// Whether this group is protected¹, thus does not allow forwarding messages from it
+	//
+	// Links:
+	//  1) https://telegram.org/blog/protected-content-delete-by-date-and-more
+	Noforwards bool
+	// ID of the group, see here »¹ for more info
+	//
+	// Links:
+	//  1) https://core.telegram.org/api/peers#peer-id
+	ID int64
+	// Title
+	Title string
+	// Chat photo
+	Photo ChatPhotoClass
+	// Participant count
+	ParticipantsCount int
+	// Date of creation of the group
+	Date int
+	// Used in basic groups to reorder updates and make sure that all of them were received.
+	Version int
+	// Means this chat was upgraded¹ to a supergroup
+	//
+	// Links:
+	//  1) https://core.telegram.org/api/channel
+	//
+	// Use SetMigratedTo and GetMigratedTo helpers.
+	MigratedTo InputChannelClass
+	// Admin rights¹ of the user in the group
+	//
+	// Links:
+	//  1) https://core.telegram.org/api/rights
+	//
+	// Use SetAdminRights and GetAdminRights helpers.
+	AdminRights ChatAdminRights
+	// Default banned rights¹ of all users in the group
+	//
+	// Links:
+	//  1) https://core.telegram.org/api/rights
+	//
+	// Use SetDefaultBannedRights and GetDefaultBannedRights helpers.
+	DefaultBannedRights ChatBannedRights
+}
+    Chat represents TL type `chat#41cbf256`. Info about a group. When updating
+    the local peer database¹, all fields from the newly received constructor
+    take priority over the old constructor cached locally (including by
+    removing fields that aren't set in the new constructor). See here »¹ for
+    an implementation of the logic to use when updating the local user peer
+    database².
+
+    Links:
+     1. https://core.telegram.org/api/peers
+     2. https://github.com/tdlib/td/blob/a24af0992245f838f2b4b418a0a2d5fa9caa27b5/td/telegram/ChatManager.cpp#L5152
+     3. https://core.telegram.org/api/peers
+
+    See https://core.telegram.org/constructor/chat for reference.
+
+func (c *Chat) AsFull() (FullChat, bool)
+func (c *Chat) AsInputPeer() *InputPeerChat
+func (c *Chat) AsNotEmpty() (NotEmptyChat, bool)
+func (c *Chat) AsNotForbidden() (NotForbiddenChat, bool)
+func (c *Chat) Decode(b *bin.Buffer) error
+func (c *Chat) DecodeBare(b *bin.Buffer) error
+func (c *Chat) Encode(b *bin.Buffer) error
+func (c *Chat) EncodeBare(b *bin.Buffer) error
+func (c *Chat) FillFrom(from interface{ ... })
+func (c *Chat) GetAdminRights() (value ChatAdminRights, ok bool)
+func (c *Chat) GetCallActive() (value bool)
+func (c *Chat) GetCallNotEmpty() (value bool)
+func (c *Chat) GetCreator() (value bool)
+func (c *Chat) GetDate() (value int)
+func (c *Chat) GetDeactivated() (value bool)
+func (c *Chat) GetDefaultBannedRights() (value ChatBannedRights, ok bool)
+func (c *Chat) GetID() (value int64)
+func (c *Chat) GetLeft() (value bool)
+func (c *Chat) GetMigratedTo() (value InputChannelClass, ok bool)
+func (c *Chat) GetNoforwards() (value bool)
+func (c *Chat) GetParticipantsCount() (value int)
+func (c *Chat) GetPhoto() (value ChatPhotoClass)
+func (c *Chat) GetTitle() (value string)
+func (c *Chat) GetVersion() (value int)
+func (c *Chat) SetAdminRights(value ChatAdminRights)
+func (c *Chat) SetCallActive(value bool)
+func (c *Chat) SetCallNotEmpty(value bool)
+func (c *Chat) SetCreator(value bool)
+func (c *Chat) SetDeactivated(value bool)
+func (c *Chat) SetDefaultBannedRights(value ChatBannedRights)
+func (c *Chat) SetFlags()
+func (c *Chat) SetLeft(value bool)
+func (c *Chat) SetMigratedTo(value InputChannelClass)
+func (c *Chat) SetNoforwards(value bool)
+func (c *Chat) String() string
+func (*Chat) TypeID() uint32
+func (c *Chat) TypeInfo() tdp.Type
+func (*Chat) TypeName() string
+func (c *Chat) Zero() bool

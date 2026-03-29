@@ -1,0 +1,251 @@
+package tg // import "github.com/gotd/td/tg"
+
+type ChatInvite struct {
+	// Flags, see TL conditional fields¹
+	//
+	// Links:
+	//  1) https://core.telegram.org/mtproto/TL-combinators#conditional-fields
+	Flags bin.Fields
+	// Whether this is a channel/supergroup¹ or a normal group²
+	//
+	// Links:
+	//  1) https://core.telegram.org/api/channel
+	//  2) https://core.telegram.org/api/channel
+	Channel bool
+	// Whether this is a channel¹
+	//
+	// Links:
+	//  1) https://core.telegram.org/api/channel
+	Broadcast bool
+	// Whether this is a public channel/supergroup¹
+	//
+	// Links:
+	//  1) https://core.telegram.org/api/channel
+	Public bool
+	// Whether this is a supergroup¹
+	//
+	// Links:
+	//  1) https://core.telegram.org/api/channel
+	Megagroup bool
+	// Whether the join request »¹ must be first approved by an administrator
+	//
+	// Links:
+	//  1) https://core.telegram.org/api/invites#join-requests
+	RequestNeeded bool
+	// Is this chat or channel verified by Telegram?
+	Verified bool
+	// This chat is probably a scam
+	Scam bool
+	// If set, this chat was reported by many users as a fake or scam: be careful when
+	// interacting with it.
+	Fake bool
+	// If set, indicates that the user has already paid for the associated Telegram Star
+	// subscriptions »¹ and it hasn't expired yet, so they may re-join the channel using
+	// messages.importChatInvite² without repeating the payment.
+	//
+	// Links:
+	//  1) https://core.telegram.org/api/stars#star-subscriptions
+	//  2) https://core.telegram.org/method/messages.importChatInvite
+	CanRefulfillSubscription bool
+	// Chat/supergroup/channel title
+	Title string
+	// Description of the group of channel
+	//
+	// Use SetAbout and GetAbout helpers.
+	About string
+	// Chat/supergroup/channel photo
+	Photo PhotoClass
+	// Participant count
+	ParticipantsCount int
+	// A few of the participants that are in the group
+	//
+	// Use SetParticipants and GetParticipants helpers.
+	Participants []UserClass
+	// Profile color palette ID¹
+	//
+	// Links:
+	//  1) https://core.telegram.org/api/colors
+	Color int
+	// For Telegram Star subscriptions »¹, contains the pricing of the subscription the
+	// user must activate to join the private channel.
+	//
+	// Links:
+	//  1) https://core.telegram.org/api/stars#star-subscriptions
+	//
+	// Use SetSubscriptionPricing and GetSubscriptionPricing helpers.
+	SubscriptionPricing StarsSubscriptionPricing
+	// For Telegram Star subscriptions »¹, the ID of the payment form for the subscription.
+	//
+	// Links:
+	//  1) https://core.telegram.org/api/stars#star-subscriptions
+	//
+	// Use SetSubscriptionFormID and GetSubscriptionFormID helpers.
+	SubscriptionFormID int64
+	// BotVerification field of ChatInvite.
+	//
+	// Use SetBotVerification and GetBotVerification helpers.
+	BotVerification BotVerification
+}
+    ChatInvite represents TL type `chatInvite#5c9d3702`. Chat invite info
+
+    See https://core.telegram.org/constructor/chatInvite for reference.
+
+func (c *ChatInvite) Decode(b *bin.Buffer) error
+    Decode implements bin.Decoder.
+
+func (c *ChatInvite) DecodeBare(b *bin.Buffer) error
+    DecodeBare implements bin.BareDecoder.
+
+func (c *ChatInvite) Encode(b *bin.Buffer) error
+    Encode implements bin.Encoder.
+
+func (c *ChatInvite) EncodeBare(b *bin.Buffer) error
+    EncodeBare implements bin.BareEncoder.
+
+func (c *ChatInvite) FillFrom(from interface {
+	GetChannel() (value bool)
+	GetBroadcast() (value bool)
+	GetPublic() (value bool)
+	GetMegagroup() (value bool)
+	GetRequestNeeded() (value bool)
+	GetVerified() (value bool)
+	GetScam() (value bool)
+	GetFake() (value bool)
+	GetCanRefulfillSubscription() (value bool)
+	GetTitle() (value string)
+	GetAbout() (value string, ok bool)
+	GetPhoto() (value PhotoClass)
+	GetParticipantsCount() (value int)
+	GetParticipants() (value []UserClass, ok bool)
+	GetColor() (value int)
+	GetSubscriptionPricing() (value StarsSubscriptionPricing, ok bool)
+	GetSubscriptionFormID() (value int64, ok bool)
+	GetBotVerification() (value BotVerification, ok bool)
+})
+    FillFrom fills ChatInvite from given interface.
+
+func (c *ChatInvite) GetAbout() (value string, ok bool)
+    GetAbout returns value of About conditional field and boolean which is true
+    if field was set.
+
+func (c *ChatInvite) GetBotVerification() (value BotVerification, ok bool)
+    GetBotVerification returns value of BotVerification conditional field and
+    boolean which is true if field was set.
+
+func (c *ChatInvite) GetBroadcast() (value bool)
+    GetBroadcast returns value of Broadcast conditional field.
+
+func (c *ChatInvite) GetCanRefulfillSubscription() (value bool)
+    GetCanRefulfillSubscription returns value of CanRefulfillSubscription
+    conditional field.
+
+func (c *ChatInvite) GetChannel() (value bool)
+    GetChannel returns value of Channel conditional field.
+
+func (c *ChatInvite) GetColor() (value int)
+    GetColor returns value of Color field.
+
+func (c *ChatInvite) GetFake() (value bool)
+    GetFake returns value of Fake conditional field.
+
+func (c *ChatInvite) GetMegagroup() (value bool)
+    GetMegagroup returns value of Megagroup conditional field.
+
+func (c *ChatInvite) GetParticipants() (value []UserClass, ok bool)
+    GetParticipants returns value of Participants conditional field and boolean
+    which is true if field was set.
+
+func (c *ChatInvite) GetParticipantsCount() (value int)
+    GetParticipantsCount returns value of ParticipantsCount field.
+
+func (c *ChatInvite) GetPhoto() (value PhotoClass)
+    GetPhoto returns value of Photo field.
+
+func (c *ChatInvite) GetPublic() (value bool)
+    GetPublic returns value of Public conditional field.
+
+func (c *ChatInvite) GetRequestNeeded() (value bool)
+    GetRequestNeeded returns value of RequestNeeded conditional field.
+
+func (c *ChatInvite) GetScam() (value bool)
+    GetScam returns value of Scam conditional field.
+
+func (c *ChatInvite) GetSubscriptionFormID() (value int64, ok bool)
+    GetSubscriptionFormID returns value of SubscriptionFormID conditional field
+    and boolean which is true if field was set.
+
+func (c *ChatInvite) GetSubscriptionPricing() (value StarsSubscriptionPricing, ok bool)
+    GetSubscriptionPricing returns value of SubscriptionPricing conditional
+    field and boolean which is true if field was set.
+
+func (c *ChatInvite) GetTitle() (value string)
+    GetTitle returns value of Title field.
+
+func (c *ChatInvite) GetVerified() (value bool)
+    GetVerified returns value of Verified conditional field.
+
+func (c *ChatInvite) MapParticipants() (value UserClassArray, ok bool)
+    MapParticipants returns field Participants wrapped in UserClassArray helper.
+
+func (c *ChatInvite) SetAbout(value string)
+    SetAbout sets value of About conditional field.
+
+func (c *ChatInvite) SetBotVerification(value BotVerification)
+    SetBotVerification sets value of BotVerification conditional field.
+
+func (c *ChatInvite) SetBroadcast(value bool)
+    SetBroadcast sets value of Broadcast conditional field.
+
+func (c *ChatInvite) SetCanRefulfillSubscription(value bool)
+    SetCanRefulfillSubscription sets value of CanRefulfillSubscription
+    conditional field.
+
+func (c *ChatInvite) SetChannel(value bool)
+    SetChannel sets value of Channel conditional field.
+
+func (c *ChatInvite) SetFake(value bool)
+    SetFake sets value of Fake conditional field.
+
+func (c *ChatInvite) SetFlags()
+    SetFlags sets flags for non-zero fields.
+
+func (c *ChatInvite) SetMegagroup(value bool)
+    SetMegagroup sets value of Megagroup conditional field.
+
+func (c *ChatInvite) SetParticipants(value []UserClass)
+    SetParticipants sets value of Participants conditional field.
+
+func (c *ChatInvite) SetPublic(value bool)
+    SetPublic sets value of Public conditional field.
+
+func (c *ChatInvite) SetRequestNeeded(value bool)
+    SetRequestNeeded sets value of RequestNeeded conditional field.
+
+func (c *ChatInvite) SetScam(value bool)
+    SetScam sets value of Scam conditional field.
+
+func (c *ChatInvite) SetSubscriptionFormID(value int64)
+    SetSubscriptionFormID sets value of SubscriptionFormID conditional field.
+
+func (c *ChatInvite) SetSubscriptionPricing(value StarsSubscriptionPricing)
+    SetSubscriptionPricing sets value of SubscriptionPricing conditional field.
+
+func (c *ChatInvite) SetVerified(value bool)
+    SetVerified sets value of Verified conditional field.
+
+func (c *ChatInvite) String() string
+    String implements fmt.Stringer.
+
+func (*ChatInvite) TypeID() uint32
+    TypeID returns type id in TL schema.
+
+    See https://core.telegram.org/mtproto/TL-tl#remarks.
+
+func (c *ChatInvite) TypeInfo() tdp.Type
+    TypeInfo returns info about TL type.
+
+func (*ChatInvite) TypeName() string
+    TypeName returns name of type in TL schema.
+
+func (c *ChatInvite) Zero() bool
+

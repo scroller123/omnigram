@@ -1,0 +1,52 @@
+package tg // import "github.com/gotd/td/tg"
+
+type MessagesImportChatInviteRequest struct {
+	// hash from a chat invite deep link¹
+	//
+	// Links:
+	//  1) https://core.telegram.org/api/links#chat-invite-links
+	Hash string
+}
+    MessagesImportChatInviteRequest represents TL type
+    `messages.importChatInvite#6c50051c`. Import a chat invite and join a
+    private chat/supergroup/channel
+
+    See https://core.telegram.org/method/messages.importChatInvite for
+    reference.
+
+func (i *MessagesImportChatInviteRequest) Decode(b *bin.Buffer) error
+    Decode implements bin.Decoder.
+
+func (i *MessagesImportChatInviteRequest) DecodeBare(b *bin.Buffer) error
+    DecodeBare implements bin.BareDecoder.
+
+func (i *MessagesImportChatInviteRequest) Encode(b *bin.Buffer) error
+    Encode implements bin.Encoder.
+
+func (i *MessagesImportChatInviteRequest) EncodeBare(b *bin.Buffer) error
+    EncodeBare implements bin.BareEncoder.
+
+func (i *MessagesImportChatInviteRequest) FillFrom(from interface {
+	GetHash() (value string)
+})
+    FillFrom fills MessagesImportChatInviteRequest from given interface.
+
+func (i *MessagesImportChatInviteRequest) GetHash() (value string)
+    GetHash returns value of Hash field.
+
+func (i *MessagesImportChatInviteRequest) String() string
+    String implements fmt.Stringer.
+
+func (*MessagesImportChatInviteRequest) TypeID() uint32
+    TypeID returns type id in TL schema.
+
+    See https://core.telegram.org/mtproto/TL-tl#remarks.
+
+func (i *MessagesImportChatInviteRequest) TypeInfo() tdp.Type
+    TypeInfo returns info about TL type.
+
+func (*MessagesImportChatInviteRequest) TypeName() string
+    TypeName returns name of type in TL schema.
+
+func (i *MessagesImportChatInviteRequest) Zero() bool
+

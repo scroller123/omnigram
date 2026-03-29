@@ -1,0 +1,17 @@
+package auth // import "github.com/gotd/td/telegram/auth"
+
+type UserAuthenticator interface {
+	Phone(ctx context.Context) (string, error)
+	Password(ctx context.Context) (string, error)
+	AcceptTermsOfService(ctx context.Context, tos tg.HelpTermsOfService) error
+	SignUp(ctx context.Context) (UserInfo, error)
+	CodeAuthenticator
+}
+    UserAuthenticator asks user for phone, password and received authentication
+    code.
+
+func CodeOnly(phone string, code CodeAuthenticator) UserAuthenticator
+func Constant(phone, password string, code CodeAuthenticator) UserAuthenticator
+func Env(prefix string, code CodeAuthenticator) UserAuthenticator
+func Test(randReader io.Reader, dc int) UserAuthenticator
+func TestUser(phone string, dc int) UserAuthenticator

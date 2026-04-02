@@ -14,7 +14,7 @@ COPY --from=build-stage /app/dist /usr/share/nginx/html
 
 # The configuration will be injected via volume mount in docker-compose
 EXPOSE 80
-EXPOSE 443
+# EXPOSE 443
 
 # Command is overridden in docker-compose.yml to enable the reload loop
 CMD ["nginx", "-g", "daemon off;"]

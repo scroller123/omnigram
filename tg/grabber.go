@@ -4,8 +4,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log"
 	"strings"
 	"time"
+
+	"telegai/auth"
 
 	"github.com/gotd/td/tg"
 )
@@ -136,7 +139,7 @@ func (app *App) grabHistory(ctx context.Context, inputPeer tg.InputPeerClass, ch
 					}
 				}
 
-				err := app.repo.InsertMessage(msg.ID, chatID, msg.Message, contextText, date, embedding)
+				err := app.repo.InsertMessage(msg.ID, chatID, date, embedding, nil, nil)
 				if err != nil {
 					fmt.Printf("Error saving message %d: %v\n", msg.ID, err)
 				}
@@ -153,6 +156,188 @@ func (app *App) grabHistory(ctx context.Context, inputPeer tg.InputPeerClass, ch
 
 	fmt.Printf("Finished fetching messages for chat %s.\n", title)
 	return nil
+}
+
+// EnrichNextBatch processes a single batch of messages (approx 100) for enrichment.
+// Returns (done, error). done is true if there are no more messages to process.
+func (app *App) EnrichNextBatch(ctx context.Context, dialogID int64) (bool, error) {
+	if app.api == nil {
+		return false, errors.New("telegram API client is not initialized yet")
+	}
+
+	// 1. Get current task state
+	task, err := app.repo.GetEnrichmentTask(dialogID, app.SessionID)
+	if err != nil {
+		return false, err
+	}
+
+	if task == nil {
+		// Initialize task if not exists (should have been started by API)
+		err = app.repo.UpsertEnrichmentTask(dialogID, app.SessionID, "processing", 0)
+		if err != nil {
+			return false, err
+		}
+		task, _ = app.repo.GetEnrichmentTask(dialogID, app.SessionID)
+	}
+
+	if task.Status == "completed" {
+		return true, nil
+	}
+
+	offsetID := task.LastMessageID
+
+	// Resolve peer (could be cached in App for better performance)
+	var inputPeer tg.InputPeerClass
+	dialogs, err := app.GetDialogs(ctx)
+	if err != nil {
+		return false, err
+	}
+	for _, d := range dialogs {
+		switch c := d.(type) {
+		case *tg.Chat:
+			if c.ID == dialogID {
+				inputPeer = &tg.InputPeerChat{ChatID: c.ID}
+				app.repo.InsertChannel(c.ID, c.Title, "")
+			}
+		case *tg.Channel:
+			if c.ID == dialogID {
+				inputPeer = &tg.InputPeerChannel{ChannelID: c.ID, AccessHash: c.AccessHash}
+				username := ""
+				if c.Username != "" {
+					username = c.Username
+				}
+				app.repo.InsertChannel(c.ID, c.Title, username)
+			}
+		}
+	}
+	if inputPeer == nil {
+		return false, fmt.Errorf("dialog %d not found", dialogID)
+	}
+
+	limit := 100 // Process 100 messages per batch
+
+	// Optimization: To get 5-window context, we fetch slightly more than the limit
+	// if we're not at the very beginning of the history.
+	// However, for simplicity and to follow "one batch = one request", we'll fetch 'limit'.
+	history, err := app.api.MessagesGetHistory(ctx, &tg.MessagesGetHistoryRequest{
+		Peer:     inputPeer,
+		OffsetID: offsetID,
+		Limit:    limit,
+	})
+	if err != nil {
+		log.Printf("Enrichment error (session %s, dialog %d): %v", app.SessionID, dialogID, err)
+		app.repo.UpdateEnrichmentProgress(dialogID, app.SessionID, task.ProcessedMessages, offsetID, "failed", err.Error())
+		return false, err
+	}
+
+	var messages []tg.MessageClass
+	var totalMessages int
+	switch h := history.(type) {
+	case *tg.MessagesMessages:
+		messages = h.Messages
+		totalMessages = len(h.Messages)
+	case *tg.MessagesMessagesSlice:
+		messages = h.Messages
+		totalMessages = h.Count
+	case *tg.MessagesChannelMessages:
+		messages = h.Messages
+		totalMessages = h.Count
+	default:
+		return false, fmt.Errorf("unexpected history type: %T", history)
+	}
+
+	if len(messages) == 0 {
+		app.repo.UpdateEnrichmentProgress(dialogID, app.SessionID, task.ProcessedMessages, offsetID, "completed", "")
+		return true, nil
+	}
+
+	// Update total count if needed
+	if task.TotalMessages == 0 {
+		app.repo.UpsertEnrichmentTask(dialogID, app.SessionID, "processing", totalMessages)
+	}
+
+	// Inner helper to process a message with 5-window context
+	processMessage := func(m *tg.Message, p2, p1, n1, n2 *tg.Message) error {
+		windowTexts := []string{}
+		if p2 != nil {
+			windowTexts = append(windowTexts, p2.Message)
+		}
+		if p1 != nil {
+			windowTexts = append(windowTexts, p1.Message)
+		}
+		windowTexts = append(windowTexts, m.Message)
+		if n1 != nil {
+			windowTexts = append(windowTexts, n1.Message)
+		}
+		if n2 != nil {
+			windowTexts = append(windowTexts, n2.Message)
+		}
+
+		contextText := strings.Join(windowTexts, "\n")
+
+		var embedding []float32
+		if app.Embedder != nil && m.Message != "" {
+			emb, err := app.Embedder.EmbedText(ctx, contextText)
+			if err != nil {
+				fmt.Printf("Enrichment: Error embedding message %d: %v\n", m.ID, err)
+			} else {
+				embedding = emb
+			}
+		}
+
+		encryptedData, nonce, err := auth.Encrypt(app.EncryptionKey, []byte(m.Message))
+		if err != nil {
+			return err
+		}
+
+		date := time.Unix(int64(m.Date), 0)
+		return app.repo.InsertMessage(m.ID, dialogID, date, embedding, encryptedData, nonce)
+	}
+
+	var messageBuffer []*tg.Message
+	newOffsetID := offsetID
+	for _, mc := range messages {
+		if m, ok := mc.(*tg.Message); ok {
+			messageBuffer = append(messageBuffer, m)
+			newOffsetID = m.ID
+		} else if ms, ok := mc.(*tg.MessageService); ok {
+			newOffsetID = ms.ID
+		}
+	}
+
+	processedCount := task.ProcessedMessages
+	for i := 0; i < len(messageBuffer); i++ {
+		var p2, p1, n1, n2 *tg.Message
+		if i >= 2 {
+			p2 = messageBuffer[i-2]
+		}
+		if i >= 1 {
+			p1 = messageBuffer[i-1]
+		}
+		if i+1 < len(messageBuffer) {
+			n1 = messageBuffer[i+1]
+		}
+		if i+2 < len(messageBuffer) {
+			n2 = messageBuffer[i+2]
+		}
+
+		if err := processMessage(messageBuffer[i], p2, p1, n1, n2); err != nil {
+			log.Printf("Message processing failed (session %s, dialog %d, msg %d): %v", app.SessionID, dialogID, messageBuffer[i].ID, err)
+			app.repo.UpdateEnrichmentProgress(dialogID, app.SessionID, processedCount, messageBuffer[i].ID, "failed", err.Error())
+			return false, err
+		}
+		processedCount++
+		// Update progress after each message for smoother tracking
+		app.repo.UpdateEnrichmentProgress(dialogID, app.SessionID, processedCount, messageBuffer[i].ID, "processing", "")
+	}
+
+	status := "processing"
+	if len(messages) < limit {
+		status = "completed"
+	}
+
+	err = app.repo.UpdateEnrichmentProgress(dialogID, app.SessionID, processedCount, newOffsetID, status, "")
+	return status == "completed", err
 }
 
 func (app *App) grabFromChat(ctx context.Context, chatClass tg.ChatClass) error {

@@ -12,28 +12,32 @@ import (
 )
 
 type App struct {
-	client   *telegram.Client
-	api      *tg.Client
-	repo     *db.Repository
-	Gemini   *ai.GeminiClient
-	Embedder ai.Embedder
+	client        *telegram.Client
+	api           *tg.Client
+	repo          *db.Repository
+	Gemini        *ai.GeminiClient
+	Embedder      ai.Embedder
+	SessionID     string
+	EncryptionKey []byte
 
 	apiID   int
 	apiHash string
 }
 
-func NewApp(apiID int, apiHash string, storage telegram.SessionStorage, repo *db.Repository, gemini *ai.GeminiClient, embedder ai.Embedder) *App {
+func NewApp(apiID int, apiHash string, storage telegram.SessionStorage, repo *db.Repository, gemini *ai.GeminiClient, embedder ai.Embedder, sessionID string, encKey []byte) *App {
 	client := telegram.NewClient(apiID, apiHash, telegram.Options{
 		SessionStorage: storage,
 	})
 
 	return &App{
-		client:   client,
-		repo:     repo,
-		Gemini:   gemini,
-		Embedder: embedder,
-		apiID:    apiID,
-		apiHash:  apiHash,
+		client:        client,
+		repo:          repo,
+		Gemini:        gemini,
+		Embedder:      embedder,
+		SessionID:     sessionID,
+		EncryptionKey: encKey,
+		apiID:         apiID,
+		apiHash:       apiHash,
 	}
 }
 

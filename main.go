@@ -105,6 +105,11 @@ func main() {
 	// New session manager handles per-session independently encrypted clients
 	manager := tg.NewManager(ctx, apiID, apiHash, encKey, repo, gemini, embedder)
 
+	// Resume any processing tasks from previous run
+	if err := manager.ResumeProcessingTasks(); err != nil {
+		log.Printf("Failed to resume tasks: %v", err)
+	}
+
 	server := api.NewServer(repo, manager)
 
 	httpServer := &http.Server{

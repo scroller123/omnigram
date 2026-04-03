@@ -69,6 +69,8 @@ func (s *Server) Router() http.Handler {
 			r.Post("/grab_by_id", s.GrabByID)
 			r.Post("/grab_invite", s.GrabByInvite)
 			r.Post("/search", s.SearchMessages)
+			r.Post("/enrich", s.EnrichDialog)
+			r.Get("/enrich/tasks", s.GetEnrichmentTasks)
 		})
 	})
 
@@ -94,6 +96,10 @@ type GrabByIDRequest struct {
 
 type GrabByInviteRequest struct {
 	Hash string `json:"hash"`
+}
+
+type EnrichRequest struct {
+	DialogID int64 `json:"dialog_id"`
 }
 
 // GetChannels godoc
@@ -325,7 +331,7 @@ func (s *Server) SearchMessages(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// 2. Search for relevant messages
-	results, err := s.Repo.SearchMessages(queryEmbedding, 100) // Top 10 results
+	results, err := s.Repo.SearchMessages(queryEmbedding, 100) // Top 100 results
 	if err != nil {
 		http.Error(w, fmt.Sprintf("Search failed: %v", err), http.StatusInternalServerError)
 		return
@@ -340,12 +346,23 @@ func (s *Server) SearchMessages(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// 3. Analyze with Gemini
+	// 3. Decrypt results for analysis
 	var messageTexts []string
-	for _, m := range results {
-		messageTexts = append(messageTexts, m.ContextText)
+	for i := range results {
+		if results[i].EncryptedData != nil {
+			decrypted, err := auth.Decrypt(app.EncryptionKey, results[i].EncryptedData, results[i].Nonce)
+			if err != nil {
+				log.Printf("Failed to decrypt message %d: %v", results[i].ID, err)
+				results[i].ContextText = "[Decryption Failed]"
+			} else {
+				results[i].ContextText = string(decrypted)
+				results[i].Text = string(decrypted) // Fallback for Text field
+			}
+		}
+		messageTexts = append(messageTexts, results[i].ContextText)
 	}
 
+	// 4. Analyze with Gemini
 	analysis, err := app.Gemini.AnalyzeMessages(r.Context(), req.Query, messageTexts)
 	if err != nil {
 		log.Printf("Gemini analysis failed: %v", err)
@@ -357,4 +374,53 @@ func (s *Server) SearchMessages(w http.ResponseWriter, r *http.Request) {
 		Analysis: analysis,
 		Results:  results,
 	})
+}
+
+// EnrichDialog godoc
+// @Summary Enrich a dialog
+// @Description Starts enrichment process (encryption + windowed embeddings) in background
+// @Tags channels
+// @Accept json
+// @Produce json
+// @Param request body api.EnrichRequest true "Dialog ID"
+// @Success 202 {string} string "Started enrichment in background"
+// @Router /api/enrich [post]
+func (s *Server) EnrichDialog(w http.ResponseWriter, r *http.Request) {
+	var req EnrichRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	sessionID := auth.GetSessionID(r.Context())
+	
+	// Just mark the task as processing in the DB. 
+	// The background worker in Manager will pick it up and process batches.
+	err := s.Repo.UpsertEnrichmentTask(req.DialogID, sessionID, "processing", 0)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.WriteHeader(http.StatusAccepted)
+	w.Write([]byte("Task marked for enrichment. Background worker will process it in batches."))
+}
+
+// GetEnrichmentTasks godoc
+// @Summary List enrichment tasks
+// @Description Get a list of all enrichment tasks and their progress for current session
+// @Tags channels
+// @Produce json
+// @Success 200 {array} db.EnrichmentTask
+// @Router /api/enrich/tasks [get]
+func (s *Server) GetEnrichmentTasks(w http.ResponseWriter, r *http.Request) {
+	sessionID := auth.GetSessionID(r.Context())
+	tasks, err := s.Repo.GetAllEnrichmentTasksBySession(sessionID)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(tasks)
 }

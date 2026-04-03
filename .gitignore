@@ -1,0 +1,9 @@
+.env
+.idea
+*.exe
+session.json
+/telegai.exe
+node_modules
+dist
+logs
+*.log

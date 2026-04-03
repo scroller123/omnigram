@@ -11,10 +11,12 @@ import (
 	"syscall"
 	"telegai/ai"
 
-	"github.com/joho/godotenv"
 	"telegai/api"
+	"telegai/auth"
 	"telegai/db"
 	"telegai/tg"
+
+	"github.com/joho/godotenv"
 )
 
 // @title Telegai API
@@ -28,10 +30,27 @@ func main() {
 
 	apiIDStr := os.Getenv("API_ID")
 	apiHash := os.Getenv("API_HASH")
-	phone := os.Getenv("PHONE")
 
 	if apiIDStr == "" || apiHash == "" {
 		log.Fatal("API_ID and API_HASH environment variables are required. Get them from https://my.telegram.org")
+	}
+
+	/*
+		TIP:
+		You can generate a valid ENCRYPTION_SECRET by running: openssl rand -hex 32 in your terminal.
+	*/
+
+	encryptionSecretHex := os.Getenv("ENCRYPTION_SECRET")
+	if encryptionSecretHex == "" {
+		log.Fatal("ENCRYPTION_SECRET environment variable is required (64 hex characters for AES-256).")
+	}
+	encKey, err := auth.NewAESKeyFromHex(encryptionSecretHex)
+	if err != nil {
+		log.Fatalf("Invalid ENCRYPTION_SECRET: %v", err)
+	}
+
+	if os.Getenv("JWT_SECRET") == "" {
+		log.Fatal("JWT_SECRET environment variable is required.")
 	}
 
 	apiID, err := strconv.Atoi(apiIDStr)
@@ -49,6 +68,11 @@ func main() {
 		log.Fatalf("Failed to initialize database: %v", err)
 	}
 	defer database.Close()
+
+	// Run migrations
+	if err := db.RunMigrations(database); err != nil {
+		log.Fatalf("Failed to run migrations: %v", err)
+	}
 
 	repo := db.NewRepository(database)
 
@@ -75,18 +99,13 @@ func main() {
 		log.Printf("OLLAMA_URL not set, falling back to Gemini embeddings")
 	}
 
-	tgApp := tg.NewApp(apiID, apiHash, "session.json", repo, gemini, embedder)
-
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	go func() {
-		if err := tgApp.Start(ctx, phone); err != nil {
-			log.Printf("Telegram app stopped: %v", err)
-		}
-	}()
+	// New session manager handles per-session independently encrypted clients
+	manager := tg.NewManager(ctx, apiID, apiHash, encKey, repo, gemini, embedder)
 
-	server := api.NewServer(repo, tgApp)
+	server := api.NewServer(repo, manager)
 
 	httpServer := &http.Server{
 		Addr:    ":8080",

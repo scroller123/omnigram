@@ -1,14 +1,11 @@
 import React, { useState } from 'react';
-import { TelegramClient } from 'telegram';
-import { Api } from 'telegram';
+import { authApi } from '../api/auth';
 
 interface LoginFormProps {
-  client: TelegramClient;
-  onLoginSuccess: () => void;
-  onLogout: () => void;
+  onLoginSuccess: (token: string) => void;
 }
 
-export const LoginForm: React.FC<LoginFormProps> = ({ client, onLoginSuccess, onLogout }) => {
+export const LoginForm: React.FC<LoginFormProps> = ({ onLoginSuccess }) => {
   const [step, setStep] = useState<'phone' | 'code' | 'password'>('phone');
   const [phoneNumber, setPhoneNumber] = useState('');
   const [phoneCodeHash, setPhoneCodeHash] = useState('');
@@ -24,15 +21,8 @@ export const LoginForm: React.FC<LoginFormProps> = ({ client, onLoginSuccess, on
     setError('');
     setLoading(true);
     try {
-      await client.connect();
-      const { phoneCodeHash } = await client.sendCode(
-        {
-          apiId: client.apiId,
-          apiHash: client.apiHash,
-        },
-        phoneNumber
-      );
-      setPhoneCodeHash(phoneCodeHash);
+      const data = await authApi.sendCode(phoneNumber);
+      setPhoneCodeHash(data.phone_code_hash);
       setStep('code');
     } catch (err: any) {
       console.error(err);
@@ -49,23 +39,15 @@ export const LoginForm: React.FC<LoginFormProps> = ({ client, onLoginSuccess, on
     setError('');
     setLoading(true);
     try {
-      await client.invoke(
-        new Api.auth.SignIn({
-          phoneNumber,
-          phoneCodeHash,
-          phoneCode,
-        })
-      );
-      // save session
-      (client.session as any).save();
-      onLoginSuccess();
-    } catch (err: any) {
-      if (err.message.includes('SESSION_PASSWORD_NEEDED')) {
+      const data = await authApi.verifyCode(phoneNumber, phoneCode, phoneCodeHash);
+      if (data.requires_2fa) {
         setStep('password');
       } else {
-        console.error(err);
-        setError(err.message || 'Invalid code');
+        onLoginSuccess(data.token);
       }
+    } catch (err: any) {
+      console.error(err);
+      setError(err.message || 'Invalid code');
     } finally {
       setLoading(false);
     }
@@ -78,21 +60,8 @@ export const LoginForm: React.FC<LoginFormProps> = ({ client, onLoginSuccess, on
     setError('');
     setLoading(true);
     try {
-      await client.signInWithPassword(
-        {
-          apiId: client.apiId,
-          apiHash: client.apiHash,
-        },
-        {
-          password: async () => password,
-          onError: (e) => {
-            setError(e.message);
-            setLoading(false);
-          }
-        }
-      );
-      (client.session as any).save();
-      onLoginSuccess();
+      const data = await authApi.verifyPassword(password);
+      onLoginSuccess(data.token);
     } catch (err: any) {
       console.error(err);
       setError(err.message || 'Invalid password');
@@ -104,8 +73,7 @@ export const LoginForm: React.FC<LoginFormProps> = ({ client, onLoginSuccess, on
   return (
     <div className="card glass-card fade-in">
       <div className="flex-between">
-        <h2>Login to Telegram</h2>
-        <button type="button" onClick={onLogout} className="text-button text-sm">Clear Credentials</button>
+        <h2>Login with Telegram</h2>
       </div>
       
       {error && <div className="error-message">{error}</div>}

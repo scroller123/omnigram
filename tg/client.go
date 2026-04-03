@@ -1,11 +1,8 @@
 package tg
 
 import (
-	"bufio"
 	"context"
 	"fmt"
-	"os"
-	"strings"
 
 	"github.com/gotd/td/telegram"
 	"github.com/gotd/td/telegram/auth"
@@ -14,88 +11,99 @@ import (
 	"telegai/db"
 )
 
-type termAuth struct {
-	phone string
-}
-
-func (a termAuth) Phone(_ context.Context) (string, error) {
-	if a.phone != "" {
-		return a.phone, nil
-	}
-	fmt.Print("Enter Phone: ")
-	code, err := bufio.NewReader(os.Stdin).ReadString('\n')
-	if err != nil {
-		return "", err
-	}
-	return strings.TrimSpace(code), nil
-}
-
-func (a termAuth) Password(_ context.Context) (string, error) {
-	fmt.Print("Enter 2FA Password: ")
-	code, err := bufio.NewReader(os.Stdin).ReadString('\n')
-	if err != nil {
-		return "", err
-	}
-	return strings.TrimSpace(code), nil
-}
-
-func (a termAuth) Code(_ context.Context, _ *tg.AuthSentCode) (string, error) {
-	fmt.Print("Enter Code: ")
-	code, err := bufio.NewReader(os.Stdin).ReadString('\n')
-	if err != nil {
-		return "", err
-	}
-	return strings.TrimSpace(code), nil
-}
-
-func (a termAuth) SignUp(ctx context.Context) (auth.UserInfo, error) {
-	return auth.UserInfo{}, fmt.Errorf("sign up is not allowed")
-}
-
-func (a termAuth) AcceptTermsOfService(ctx context.Context, tos tg.HelpTermsOfService) error {
-	return &auth.SignUpRequired{TermsOfService: tos}
-}
-
 type App struct {
 	client   *telegram.Client
 	api      *tg.Client
 	repo     *db.Repository
 	Gemini   *ai.GeminiClient
 	Embedder ai.Embedder
+
+	apiID   int
+	apiHash string
 }
 
-func NewApp(apiID int, apiHash, sessionFile string, repo *db.Repository, gemini *ai.GeminiClient, embedder ai.Embedder) *App {
+func NewApp(apiID int, apiHash string, storage telegram.SessionStorage, repo *db.Repository, gemini *ai.GeminiClient, embedder ai.Embedder) *App {
 	client := telegram.NewClient(apiID, apiHash, telegram.Options{
-		SessionStorage: &telegram.FileSessionStorage{
-			Path: sessionFile,
-		},
+		SessionStorage: storage,
 	})
-	
+
 	return &App{
 		client:   client,
 		repo:     repo,
 		Gemini:   gemini,
 		Embedder: embedder,
+		apiID:    apiID,
+		apiHash:  apiHash,
 	}
 }
 
-func (app *App) Start(ctx context.Context, phone string) error {
+func (app *App) Start(ctx context.Context) error {
 	fmt.Println("Starting Telegram client...")
 	return app.client.Run(ctx, func(ctx context.Context) error {
-		flow := auth.NewFlow(
-			termAuth{phone: phone},
-			auth.SendCodeOptions{},
-		)
-		
-		fmt.Println("Authenticating...")
-		if err := app.client.Auth().IfNecessary(ctx, flow); err != nil {
-			return err
+		fmt.Println("Telegram client connection established.")
+		app.api = tg.NewClient(app.client)
+
+		// Check initial auth status
+		status, _ := app.client.Auth().Status(ctx)
+		if status.Authorized {
+			fmt.Println("Telegram client is already authenticated.")
+		} else {
+			fmt.Println("Telegram client not authenticated. Waiting for login via API...")
 		}
 
-		fmt.Println("Telegram client successfully authenticated and running.")
-		app.api = tg.NewClient(app.client)
-		
 		<-ctx.Done()
 		return ctx.Err()
 	})
+}
+
+func (app *App) IsAuthenticated(ctx context.Context) (bool, error) {
+	status, err := app.client.Auth().Status(ctx)
+	if err != nil {
+		return false, err
+	}
+	return status.Authorized, nil
+}
+
+func (app *App) SendCode(ctx context.Context, phone string) (string, error) {
+	res, err := app.client.Auth().SendCode(ctx, phone, auth.SendCodeOptions{})
+	if err != nil {
+		return "", err
+	}
+
+	// res is of type tg.AuthSentCodeClass, we need to cast it to get the hash
+	switch s := res.(type) {
+	case *tg.AuthSentCode:
+		return s.PhoneCodeHash, nil
+	default:
+		return "", fmt.Errorf("unexpected sent code type: %T", res)
+	}
+}
+
+func (app *App) SignIn(ctx context.Context, phone, code, phoneCodeHash string) error {
+	_, err := app.client.Auth().SignIn(ctx, phone, code, phoneCodeHash)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (app *App) Password(ctx context.Context, password string) error {
+	_, err := app.client.Auth().Password(ctx, password)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (app *App) GetMe(ctx context.Context) (*tg.User, error) {
+	user, err := app.client.Self(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return user, nil
+}
+
+func (app *App) Logout(ctx context.Context) error {
+	_, err := app.api.AuthLogOut(ctx)
+	return err
 }

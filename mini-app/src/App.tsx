@@ -1,74 +1,43 @@
 import { useState, useEffect } from 'react';
-import { TelegramClient } from 'telegram';
-import { StorageSession, getClient, resetClient } from './telegram/client';
-import { CredentialsForm } from './components/CredentialsForm';
+import { authApi } from './api/auth';
 import { LoginForm } from './components/LoginForm';
 import { DialogsTable } from './components/DialogsTable';
 
 function App() {
-  const [apiId, setApiId] = useState<number | null>(null);
-  const [apiHash, setApiHash] = useState<string | null>(null);
-  const [client, setClient] = useState<TelegramClient | null>(null);
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
   const [checkingAuth, setCheckingAuth] = useState(true);
+  const [user, setUser] = useState<any>(null);
 
-  // Load credentials on mount
+  // Load user on mount
   useEffect(() => {
-    const savedId = localStorage.getItem('tg_api_id');
-    const savedHash = localStorage.getItem('tg_api_hash');
-    const sessionStr = localStorage.getItem('tg_session_string');
-
-    if (savedId && savedHash) {
-      setApiId(parseInt(savedId, 10));
-      setApiHash(savedHash);
-      
-      const tgClient = getClient(parseInt(savedId, 10), savedHash);
-      setClient(tgClient);
-      
-      // If we have a session string, let's verify if we are really logged in
-      if (sessionStr) {
-        tgClient.connect().then(async () => {
-          const isAuth = await tgClient.checkAuthorization();
-          setIsAuthenticated(isAuth);
+    const token = localStorage.getItem('tg_jwt_token');
+    if (token) {
+      authApi.getMe()
+        .then((userData) => {
+          setUser(userData);
+          setIsAuthenticated(true);
           setCheckingAuth(false);
-        }).catch((e) => {
-          console.error("Auth check failed:", e);
+        })
+        .catch(() => {
+          setIsAuthenticated(false);
           setCheckingAuth(false);
         });
-      } else {
-        setCheckingAuth(false);
-      }
     } else {
       setCheckingAuth(false);
     }
   }, []);
 
-  const handleCredentialsSaved = (id: number, hash: string) => {
-    setApiId(id);
-    setApiHash(hash);
-    const tgClient = getClient(id, hash);
-    setClient(tgClient);
-  };
-
-  const handleClearCredentials = () => {
-    localStorage.removeItem('tg_api_id');
-    localStorage.removeItem('tg_api_hash');
-    if (client) {
-      (client.session as StorageSession).clear();
-      resetClient();
-    }
-    setApiId(null);
-    setApiHash(null);
-    setClient(null);
-    setIsAuthenticated(false);
+  const handleLoginSuccess = () => {
+    authApi.getMe().then((userData) => {
+      setUser(userData);
+      setIsAuthenticated(true);
+    });
   };
 
   const handleLogout = async () => {
-    if (client) {
-      await client.invoke(new (client as any).api.auth.LogOut());
-      (client.session as StorageSession).clear();
-    }
+    await authApi.logout();
     setIsAuthenticated(false);
+    setUser(null);
   };
 
   return (
@@ -82,7 +51,11 @@ function App() {
       <main className="content">
         <header className="app-header">
           <h1>Telegram MTProto Client</h1>
-          <p className="subtitle">Securely connect and view your dialogs using pure JS MTProto.</p>
+          {user ? (
+            <p className="subtitle">Logged in as {user.first_name} {user.last_name} (@{user.username})</p>
+          ) : (
+            <p className="subtitle">Securely connect and view your dialogs using Backend-API MTProto.</p>
+          )}
         </header>
 
         {checkingAuth ? (
@@ -90,21 +63,15 @@ function App() {
             <div className="spinner"></div>
             <p>Checking session...</p>
           </div>
-        ) : !apiId || !apiHash ? (
-          <div className="flex-center-y">
-            <CredentialsForm onSaved={handleCredentialsSaved} />
-          </div>
-        ) : !isAuthenticated && client ? (
+        ) : !isAuthenticated ? (
           <div className="flex-center-y">
             <LoginForm 
-              client={client} 
-              onLoginSuccess={() => setIsAuthenticated(true)} 
-              onLogout={handleClearCredentials} 
+              onLoginSuccess={handleLoginSuccess} 
             />
           </div>
-        ) : isAuthenticated && client ? (
-          <DialogsTable client={client} onLogout={handleLogout} />
-        ) : null}
+        ) : (
+          <DialogsTable onLogout={handleLogout} />
+        )}
       </main>
     </div>
   );

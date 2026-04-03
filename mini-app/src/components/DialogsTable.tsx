@@ -1,22 +1,18 @@
 import React, { useEffect, useState } from 'react';
-import { TelegramClient } from 'telegram';
-import { MessageSquare, Users, User, ArrowLeft } from 'lucide-react';
+import { MessageSquare, Users, ArrowLeft } from 'lucide-react';
+import { apiFetch } from '../api/auth';
 
 interface DialogsTableProps {
-  client: TelegramClient;
   onLogout: () => void;
 }
 
 interface DialogInfo {
-  id: string;
-  name: string;
-  lastMessage: string;
-  date: number;
-  unreadCount: number;
-  type: 'user' | 'chat' | 'channel';
+  id: number;
+  title: string;
+  type: string;
 }
 
-export const DialogsTable: React.FC<DialogsTableProps> = ({ client, onLogout }) => {
+export const DialogsTable: React.FC<DialogsTableProps> = ({ onLogout }) => {
   const [dialogs, setDialogs] = useState<DialogInfo[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -24,16 +20,10 @@ export const DialogsTable: React.FC<DialogsTableProps> = ({ client, onLogout }) 
   useEffect(() => {
     const fetchDialogs = async () => {
       try {
-        const dialogsData = await client.getDialogs({ limit: 50 });
-        const parsedDialogs = dialogsData.map((d: any) => ({
-          id: d.id?.toString() || Math.random().toString(),
-          name: d.title || d.name || 'Unknown',
-          lastMessage: d.message?.message || d.message?.text || 'Media message',
-          date: d.date || 0,
-          unreadCount: d.unreadCount || 0,
-          type: (d.isChannel ? 'channel' : d.isGroup ? 'chat' : 'user') as 'user' | 'chat' | 'channel',
-        }));
-        setDialogs(parsedDialogs);
+        const res = await apiFetch('/dialogs');
+        if (!res.ok) throw new Error(await res.text());
+        const data = await res.json();
+        setDialogs(data);
       } catch (err: any) {
         console.error('Failed to fetch dialogs:', err);
         setError('Failed to fetch dialogs. ' + err.message);
@@ -43,7 +33,7 @@ export const DialogsTable: React.FC<DialogsTableProps> = ({ client, onLogout }) 
     };
 
     fetchDialogs();
-  }, [client]);
+  }, []);
 
   return (
     <div className="card glass-card large-card fade-in">
@@ -67,9 +57,8 @@ export const DialogsTable: React.FC<DialogsTableProps> = ({ client, onLogout }) 
             <thead>
               <tr>
                 <th>Type</th>
-                <th>Name</th>
-                <th>Last Message</th>
-                <th>Unread</th>
+                <th>ID</th>
+                <th>Title</th>
               </tr>
             </thead>
             <tbody>
@@ -77,20 +66,12 @@ export const DialogsTable: React.FC<DialogsTableProps> = ({ client, onLogout }) 
                 <tr key={d.id}>
                   <td>
                     <div className="avatar-icon">
-                      {d.type === 'user' && <User size={18} />}
-                      {d.type === 'chat' && <Users size={18} />}
-                      {d.type === 'channel' && <MessageSquare size={18} />}
+                      {d.type === 'group' && <Users size={18} />}
+                      {d.type === 'supergroup/channel' && <MessageSquare size={18} />}
                     </div>
                   </td>
-                  <td className="font-medium text-light">{d.name}</td>
-                  <td className="text-muted truncate-cell">{d.lastMessage}</td>
-                  <td>
-                    {d.unreadCount > 0 ? (
-                      <span className="badge">{d.unreadCount}</span>
-                    ) : (
-                      <span className="text-muted">-</span>
-                    )}
-                  </td>
+                  <td className="text-muted">{d.id}</td>
+                  <td className="font-medium text-light">{d.title}</td>
                 </tr>
               ))}
             </tbody>

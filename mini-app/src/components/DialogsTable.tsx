@@ -37,7 +37,7 @@ export const DialogsTable: React.FC<DialogsTableProps> = ({ onLogout }) => {
 
   return (
     <div className="card glass-card large-card fade-in">
-      <div className="flex-between header-row">
+      <div className="flex-between header-row" style={{ padding: '0 1rem', marginBottom: '1rem' }}>
         <h2>Your Conversations</h2>
         <button onClick={onLogout} className="text-button flex-center gap-sm text-sm">
           <ArrowLeft size={16} /> Logout
@@ -57,7 +57,6 @@ export const DialogsTable: React.FC<DialogsTableProps> = ({ onLogout }) => {
             <thead>
               <tr>
                 <th>Type</th>
-                <th>ID</th>
                 <th>Title</th>
               </tr>
             </thead>
@@ -70,7 +69,6 @@ export const DialogsTable: React.FC<DialogsTableProps> = ({ onLogout }) => {
                       {d.type === 'supergroup/channel' && <MessageSquare size={18} />}
                     </div>
                   </td>
-                  <td className="text-muted">{d.id}</td>
                   <td className="font-medium text-light">{d.title}</td>
                 </tr>
               ))}

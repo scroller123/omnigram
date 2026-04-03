@@ -89,9 +89,9 @@ body {
 
 /* Typography & Layout */
 .content {
-  max-width: 1000px;
-  margin: 0 auto;
-  padding: 2rem;
+  max-width: 100%;
+  margin: 0;
+  padding: 0;
   width: 100%;
   flex: 1;
   display: flex;
@@ -109,6 +109,7 @@ body {
   font-weight: 700;
   background: linear-gradient(135deg, #60A5FA, var(--primary));
   -webkit-background-clip: text;
+  background-clip: text;
   -webkit-text-fill-color: transparent;
   margin-bottom: 0.5rem;
 }
@@ -133,7 +134,13 @@ body {
 }
 
 .large-card {
-  max-width: 900px;
+  max-width: 100%;
+  padding: 1rem 0;
+  margin: 0;
+  border-radius: 0;
+  border: none;
+  background: transparent;
+  box-shadow: none;
 }
 
 /* Forms & Inputs */
@@ -234,10 +241,10 @@ label {
 /* Tables */
 .table-container {
   overflow-x: auto;
-  border-radius: 8px;
-  border: 1px solid var(--border);
-  margin-top: 1.5rem;
+  margin-top: 1rem;
   background: rgba(15, 23, 42, 0.3);
+  border-left: none;
+  border-right: none;
 }
 
 .beautiful-table {
@@ -246,9 +253,14 @@ label {
   text-align: left;
 }
 
+.beautiful-table th,
+.beautiful-table td {
+  padding: 1rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+
 .beautiful-table th {
   background: rgba(30, 41, 59, 0.8);
-  padding: 1rem;
   font-size: 0.875rem;
   font-weight: 600;
   color: var(--text-muted);
@@ -256,9 +268,17 @@ label {
   white-space: nowrap;
 }
 
-.beautiful-table td {
-  padding: 1rem;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+.beautiful-table th:first-child,
+.beautiful-table td:first-child {
+  width: 70px;
+  text-align: center;
+  padding: 1rem 0.5rem;
+}
+
+.beautiful-table th:last-child,
+.beautiful-table td:last-child {
+  width: auto;
+  padding-right: 1.5rem;
 }
 
 .beautiful-table tr:hover td {

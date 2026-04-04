@@ -60,7 +60,23 @@ func main() {
 
 	databaseURL := os.Getenv("DATABASE_URL")
 	if databaseURL == "" {
-		databaseURL = "postgres://postgres:postgres@localhost:5432/telegai?sslmode=disable"
+		host := os.Getenv("DB_HOST")
+		if host == "" {
+			host = "localhost"
+		}
+		user := os.Getenv("POSTGRES_USER")
+		if user == "" {
+			user = "postgres"
+		}
+		pass := os.Getenv("POSTGRES_PASSWORD")
+		if pass == "" {
+			pass = "postgres"
+		}
+		dbName := os.Getenv("POSTGRES_DB")
+		if dbName == "" {
+			dbName = "telegai"
+		}
+		databaseURL = fmt.Sprintf("postgres://%s:%s@%s:5432/%s?sslmode=disable", user, pass, host, dbName)
 	}
 
 	database, err := db.InitDB(databaseURL)

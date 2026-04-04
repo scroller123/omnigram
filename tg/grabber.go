@@ -192,7 +192,7 @@ func (app *App) EnrichNextBatch(ctx context.Context, dialogID int64) (bool, erro
 	if err != nil {
 		return false, err
 	}
-	
+
 	// Check chats (Groups/Channels)
 	for _, d := range chats {
 		switch c := d.(type) {
@@ -342,23 +342,39 @@ func (app *App) EnrichNextBatch(ctx context.Context, dialogID int64) (bool, erro
 			author = "Author"
 		}
 		ts := time.Unix(int64(m.Date), 0).Format("2006-01-02 15:04:05")
-		return fmt.Sprintf("[%s]: %s (%s)", author, m.Message, ts)
+		return fmt.Sprintf("%s: %s (%s)", author, m.Message, ts)
 	}
 
 	for i := 0; i < len(messageBuffer); i++ {
 		var past1, past2, past3, past4 *tg.Message
-		if i+1 < len(messageBuffer) { past1 = messageBuffer[i+1] }
-		if i+2 < len(messageBuffer) { past2 = messageBuffer[i+2] }
-		if i+3 < len(messageBuffer) { past3 = messageBuffer[i+3] }
-		if i+4 < len(messageBuffer) { past4 = messageBuffer[i+4] }
+		if i+1 < len(messageBuffer) {
+			past1 = messageBuffer[i+1]
+		}
+		if i+2 < len(messageBuffer) {
+			past2 = messageBuffer[i+2]
+		}
+		if i+3 < len(messageBuffer) {
+			past3 = messageBuffer[i+3]
+		}
+		if i+4 < len(messageBuffer) {
+			past4 = messageBuffer[i+4]
+		}
 
 		windowTexts := []string{}
-		if past4 != nil { windowTexts = append(windowTexts, formatMsg(past4)) }
-		if past3 != nil { windowTexts = append(windowTexts, formatMsg(past3)) }
-		if past2 != nil { windowTexts = append(windowTexts, formatMsg(past2)) }
-		if past1 != nil { windowTexts = append(windowTexts, formatMsg(past1)) }
+		if past4 != nil {
+			windowTexts = append(windowTexts, formatMsg(past4))
+		}
+		if past3 != nil {
+			windowTexts = append(windowTexts, formatMsg(past3))
+		}
+		if past2 != nil {
+			windowTexts = append(windowTexts, formatMsg(past2))
+		}
+		if past1 != nil {
+			windowTexts = append(windowTexts, formatMsg(past1))
+		}
 		windowTexts = append(windowTexts, formatMsg(messageBuffer[i]))
-		
+
 		toProcess = append(toProcess, messageToProcess{
 			m:           messageBuffer[i],
 			contextText: strings.Join(windowTexts, "\n"),
@@ -367,19 +383,30 @@ func (app *App) EnrichNextBatch(ctx context.Context, dialogID int64) (bool, erro
 
 	var embeddings [][]float32
 	if app.Embedder != nil && len(toProcess) > 0 {
-		texts := make([]string, len(toProcess))
-		for i := range toProcess {
-			texts[i] = toProcess[i].contextText
+		const batchSize = 1 // Reduced from 100 to avoid overloading Ollama
+		for batchStart := 0; batchStart < len(toProcess); batchStart += batchSize {
+			batchEnd := batchStart + batchSize
+			if batchEnd > len(toProcess) {
+				batchEnd = len(toProcess)
+			}
+
+			chunk := toProcess[batchStart:batchEnd]
+			texts := make([]string, len(chunk))
+			for i := range chunk {
+				texts[i] = chunk[i].contextText
+			}
+
+			log.Printf("Enrichment: Batch embedding %d messages (slice %d-%d) for dialog %d", len(texts), batchStart, batchEnd, dialogID)
+			embs, err := app.Embedder.EmbedBatch(ctx, texts)
+			if err != nil {
+				log.Printf("Enrichment: Batch embedding failed (slice %d-%d): %v", err)
+				app.repo.UpdateEnrichmentProgress(dialogID, app.SessionID, task.ProcessedMessages, newOffsetID, "failed", err.Error())
+				return false, err
+			}
+			embeddings = append(embeddings, embs...)
+			// Update progress after each small chunk of embeddings
+			app.repo.UpdateEnrichmentProgress(dialogID, app.SessionID, task.ProcessedMessages+batchStart, chunk[len(chunk)-1].m.ID, "processing", "")
 		}
-		
-		log.Printf("Enrichment: Batch embedding %d messages for dialog %d", len(texts), dialogID)
-		embs, err := app.Embedder.EmbedBatch(ctx, texts)
-		if err != nil {
-			log.Printf("Enrichment: Batch embedding failed: %v", err)
-			app.repo.UpdateEnrichmentProgress(dialogID, app.SessionID, task.ProcessedMessages, newOffsetID, "failed", err.Error())
-			return false, err
-		}
-		embeddings = embs
 	}
 
 	processedCount := task.ProcessedMessages

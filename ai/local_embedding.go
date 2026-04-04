@@ -75,6 +75,8 @@ func (c *LocalEmbeddingClient) EmbedBatch(ctx context.Context, texts []string) (
 		Input: texts,
 	})
 
+	log.Printf("Embedding %d messages, request body size %d", len(texts), len(reqBody))
+
 	req, err := http.NewRequestWithContext(ctx, "POST", c.URL+"/api/embed", bytes.NewBuffer(reqBody))
 	if err != nil {
 		return nil, err

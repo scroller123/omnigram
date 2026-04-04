@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { MessageSquare, Users, ArrowLeft, Zap, CheckCircle, Clock, AlertCircle } from 'lucide-react';
+import { MessageSquare, Users, ArrowLeft, Zap } from 'lucide-react';
 import { apiFetch } from '../api/auth';
 
 interface DialogsTableProps {

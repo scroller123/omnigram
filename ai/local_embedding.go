@@ -21,21 +21,21 @@ func NewLocalEmbeddingClient(url, model string) *LocalEmbeddingClient {
 }
 
 type ollamaEmbeddingRequest struct {
-	Model   string `json:"model"`
-	Prompt  string `json:"prompt"`
+	Model string `json:"model"`
+	Input string `json:"input"`
 }
 
 type ollamaEmbeddingResponse struct {
-	Embedding []float32 `json:"embedding"`
+	Embeddings [][]float32 `json:"embeddings"`
 }
 
 func (c *LocalEmbeddingClient) EmbedText(ctx context.Context, text string) ([]float32, error) {
 	reqBody, _ := json.Marshal(ollamaEmbeddingRequest{
-		Model:  c.Model,
-		Prompt: text,
+		Model: c.Model,
+		Input: text,
 	})
 
-	req, err := http.NewRequestWithContext(ctx, "POST", c.URL+"/api/embeddings", bytes.NewBuffer(reqBody))
+	req, err := http.NewRequestWithContext(ctx, "POST", c.URL+"/api/embed", bytes.NewBuffer(reqBody))
 	if err != nil {
 		return nil, err
 	}
@@ -56,5 +56,9 @@ func (c *LocalEmbeddingClient) EmbedText(ctx context.Context, text string) ([]fl
 		return nil, err
 	}
 
-	return res.Embedding, nil
+	if len(res.Embeddings) == 0 {
+		return nil, fmt.Errorf("ollama returned no embeddings")
+	}
+
+	return res.Embeddings[0], nil
 }

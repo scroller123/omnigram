@@ -5,3 +5,7 @@ PARAMETER num_thread 4
 EOF
 
 ollama create nomic-fast -f /tmp/Modelfile
+
+```
+ollama show nomic-fast --parameters
+```

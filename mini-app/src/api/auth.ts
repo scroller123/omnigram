@@ -1,4 +1,4 @@
-const BASE_URL = '/api';
+const BASE_URL = '/api/api';
 
 const getSessionID = () => {
   let id = localStorage.getItem('tg_session_id');

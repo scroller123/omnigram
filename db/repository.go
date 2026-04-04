@@ -22,6 +22,8 @@ type Message struct {
 	Embedding         []float32 `json:"embedding,omitempty"`
 	EncryptedData     []byte    `json:"encrypted_data,omitempty"`
 	Nonce             []byte    `json:"nonce,omitempty"`
+	EncryptedContext  []byte    `json:"encrypted_context,omitempty"`
+	NonceContext      []byte    `json:"nonce_context,omitempty"`
 }
 
 type EnrichmentTask struct {
@@ -51,20 +53,22 @@ func (r *Repository) InsertChannel(id int64, title, username string) error {
 	return err
 }
 
-func (r *Repository) InsertMessage(id int, channelID int64, date time.Time, embedding []float32, encryptedData []byte, nonce []byte) error {
+func (r *Repository) InsertMessage(id int, channelID int64, date time.Time, embedding []float32, encryptedData []byte, nonce []byte, encContext []byte, nonceContext []byte) error {
 	var embStr sql.NullString
 	if len(embedding) > 0 {
 		embStr.String = formatVector(embedding)
 		embStr.Valid = true
 	}
 
-	query := `INSERT INTO messages (id, channel_id, date, embedding, encrypted_data, nonce) VALUES ($1, $2, $3, $4, $5, $6)
+	query := `INSERT INTO messages (id, channel_id, date, embedding, encrypted_data, nonce, encrypted_context, nonce_context) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
               ON CONFLICT(id, channel_id) DO UPDATE SET 
               date=EXCLUDED.date, 
               embedding=COALESCE(EXCLUDED.embedding, messages.embedding),
               encrypted_data=EXCLUDED.encrypted_data,
-              nonce=EXCLUDED.nonce`
-	_, err := r.DB.Exec(query, id, channelID, date, embStr, encryptedData, nonce)
+              nonce=EXCLUDED.nonce,
+              encrypted_context=EXCLUDED.encrypted_context,
+              nonce_context=EXCLUDED.nonce_context`
+	_, err := r.DB.Exec(query, id, channelID, date, embStr, encryptedData, nonce, encContext, nonceContext)
 	return err
 }
 
@@ -76,7 +80,7 @@ func (r *Repository) UpdateMessageEmbedding(id int, channelID int64, embedding [
 
 func (r *Repository) SearchMessages(queryEmbedding []float32, limit int) ([]Message, error) {
 	// Using cosine distance <=> (smaller is more similar)
-	query := `SELECT id, channel_id, date, encrypted_data, nonce FROM messages 
+	query := `SELECT id, channel_id, date, encrypted_data, nonce, encrypted_context, nonce_context FROM messages 
               WHERE embedding IS NOT NULL 
               ORDER BY embedding <=> $1 LIMIT $2`
 	rows, err := r.DB.Query(query, formatVector(queryEmbedding), limit)
@@ -88,7 +92,7 @@ func (r *Repository) SearchMessages(queryEmbedding []float32, limit int) ([]Mess
 	var messages []Message
 	for rows.Next() {
 		var m Message
-		if err := rows.Scan(&m.ID, &m.ChannelID, &m.Date, &m.EncryptedData, &m.Nonce); err != nil {
+		if err := rows.Scan(&m.ID, &m.ChannelID, &m.Date, &m.EncryptedData, &m.Nonce, &m.EncryptedContext, &m.NonceContext); err != nil {
 			return nil, err
 		}
 		messages = append(messages, m)
@@ -123,7 +127,7 @@ func (r *Repository) GetChannels() ([]Channel, error) {
 }
 
 func (r *Repository) GetMessages(channelID int64) ([]Message, error) {
-	rows, err := r.DB.Query("SELECT id, channel_id, date, encrypted_data, nonce FROM messages WHERE channel_id = $1 ORDER BY date DESC", channelID)
+	rows, err := r.DB.Query("SELECT id, channel_id, date, encrypted_data, nonce, encrypted_context, nonce_context FROM messages WHERE channel_id = $1 ORDER BY date DESC", channelID)
 	if err != nil {
 		return nil, err
 	}
@@ -132,7 +136,7 @@ func (r *Repository) GetMessages(channelID int64) ([]Message, error) {
 	var messages []Message
 	for rows.Next() {
 		var m Message
-		if err := rows.Scan(&m.ID, &m.ChannelID, &m.Date, &m.EncryptedData, &m.Nonce); err != nil {
+		if err := rows.Scan(&m.ID, &m.ChannelID, &m.Date, &m.EncryptedData, &m.Nonce, &m.EncryptedContext, &m.NonceContext); err != nil {
 			return nil, err
 		}
 		messages = append(messages, m)

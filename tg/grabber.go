@@ -139,7 +139,7 @@ func (app *App) grabHistory(ctx context.Context, inputPeer tg.InputPeerClass, ch
 					}
 				}
 
-				err := app.repo.InsertMessage(msg.ID, chatID, date, embedding, nil, nil)
+				err := app.repo.InsertMessage(msg.ID, chatID, date, embedding, nil, nil, nil, nil)
 				if err != nil {
 					fmt.Printf("Error saving message %d: %v\n", msg.ID, err)
 				}
@@ -326,8 +326,15 @@ func (app *App) EnrichNextBatch(ctx context.Context, dialogID int64) (bool, erro
 			return false, err
 		}
 
+		encryptedContext, nonceContext, err := auth.Encrypt(app.EncryptionKey, []byte(item.contextText))
+		if err != nil {
+			log.Printf("Context encryption failed: %v", err)
+			app.repo.UpdateEnrichmentProgress(dialogID, app.SessionID, processedCount, item.m.ID, "failed", err.Error())
+			return false, err
+		}
+
 		date := time.Unix(int64(item.m.Date), 0)
-		if err := app.repo.InsertMessage(item.m.ID, dialogID, date, embedding, encryptedData, nonce); err != nil {
+		if err := app.repo.InsertMessage(item.m.ID, dialogID, date, embedding, encryptedData, nonce, encryptedContext, nonceContext); err != nil {
 			app.repo.UpdateEnrichmentProgress(dialogID, app.SessionID, processedCount, item.m.ID, "failed", err.Error())
 			return false, err
 		}

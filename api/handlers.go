@@ -349,10 +349,19 @@ func (s *Server) SearchMessages(w http.ResponseWriter, r *http.Request) {
 	// 3. Decrypt results for analysis
 	var messageTexts []string
 	for i := range results {
-		if results[i].EncryptedData != nil {
-			decrypted, err := auth.Decrypt(app.EncryptionKey, results[i].EncryptedData, results[i].Nonce)
+		// Prefer context if available, otherwise just original message
+		var toDecrypt []byte = results[i].EncryptedData
+		var nonce []byte = results[i].Nonce
+		
+		if results[i].EncryptedContext != nil {
+			toDecrypt = results[i].EncryptedContext
+			nonce = results[i].NonceContext
+		}
+
+		if toDecrypt != nil {
+			decrypted, err := auth.Decrypt(app.EncryptionKey, toDecrypt, nonce)
 			if err != nil {
-				log.Printf("Failed to decrypt message %d: %v", results[i].ID, err)
+				log.Printf("Failed to decrypt message/context %d: %v", results[i].ID, err)
 				results[i].ContextText = "[Decryption Failed]"
 			} else {
 				results[i].ContextText = string(decrypted)

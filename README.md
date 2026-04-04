@@ -17,3 +17,5 @@ PARAMETER num_thread 4
 EOF
 
 ollama create nomic-fast-512 -f /tmp/Modelfile
+
+ollama pull all-minilm

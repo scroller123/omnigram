@@ -91,6 +91,7 @@ func main() {
 	var embedder ai.Embedder
 	ollamaURL := os.Getenv("OLLAMA_URL")
 	if ollamaURL != "" {
+		// embedder = ai.NewLocalEmbeddingClient(ollamaURL, "all-minilm")
 		embedder = ai.NewLocalEmbeddingClient(ollamaURL, "nomic-fast")
 		//embedder = ai.NewLocalEmbeddingClient(ollamaURL /*"nomic-embed-text"*/, "qwen3-embedding:0.6b")
 		log.Printf("Using local embedding (Ollama) at %s", ollamaURL)

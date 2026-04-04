@@ -15,13 +15,14 @@ services:
     restart: unless-stopped
 
   ollama:
-    image: ollama/ollama:latest
+    image: ollama/ollama:0.18.0
     container_name: telegai_ollama
     environment:
       OLLAMA_VULKAN: 1
       OLLAMA_NUM_PARALLEL: 4
       OLLAMA_CONTEXT_LENGTH: 1024
       OLLAMA_KEEP_ALIVE: "-1"
+      OLLAMA_DEBUG: 1
     ports:
       - "11434:11434"
     volumes:

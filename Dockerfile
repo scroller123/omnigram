@@ -1,31 +1,37 @@
-FROM golang:1.24-alpine AS builder
-
+# Stage 1: Dependency management
+FROM golang:1.25-alpine AS deps
 WORKDIR /app
-
-# Install build dependencies
-RUN apk add --no-cache gcc musl-dev
-
-# Copy go mod and sum files
 COPY go.mod go.sum ./
 RUN go mod download
 
-# Copy source code
+# Stage 2: Documentation generator
+FROM deps AS docs-gen
+RUN go install github.com/swaggo/swag/cmd/swag@latest
 COPY . .
+RUN swag init -g main.go
 
-# Build the application
-RUN go build -o telegai main.go
+# Stage 3: Builder
+FROM docs-gen AS builder
+# Use CGO_ENABLED=0 for a truly static binary if possible
+# (Keeping it enabled if required by dependencies, but disabling it is safer for minimal images)
+RUN CGO_ENABLED=0 go build -ldflags="-s -w" -o telegai main.go
 
-# Run stage
-FROM alpine:latest
-RUN apk --no-cache add ca-certificates
+# Stage 4: Runtime
+FROM alpine:3.21
+RUN apk --no-cache add ca-certificates tzdata
 
-WORKDIR /root/
+# Create a non-root user for security
+RUN adduser -D -u 10001 appuser
+USER appuser
 
-# Copy the binary from builder
+WORKDIR /app
+
+# Copy the binary and generated docs
 COPY --from=builder /app/telegai .
-# Copy .env if needed, though better via env vars in compose
-# COPY .env .
+# Documentation is typically compiled into the binary via the 'docs' package import, 
+# but copying the swagger files can be useful for static serving if needed.
+# COPY --from=builder /app/docs ./docs
 
 EXPOSE 8080
 
-CMD ["./telegai"]
+ENTRYPOINT ["./telegai"]

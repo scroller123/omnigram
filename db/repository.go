@@ -24,6 +24,7 @@ type Message struct {
 	Nonce             []byte    `json:"nonce,omitempty"`
 	EncryptedContext  []byte    `json:"encrypted_context,omitempty"`
 	NonceContext      []byte    `json:"nonce_context,omitempty"`
+	ChannelUsername   string    `json:"channel_username,omitempty"`
 }
 
 type EnrichmentTask struct {
@@ -80,9 +81,11 @@ func (r *Repository) UpdateMessageEmbedding(id int, channelID int64, embedding [
 
 func (r *Repository) SearchMessages(queryEmbedding []float32, limit int) ([]Message, error) {
 	// Using cosine distance <=> (smaller is more similar)
-	query := `SELECT id, channel_id, date, encrypted_data, nonce, encrypted_context, nonce_context FROM messages 
-              WHERE embedding IS NOT NULL 
-              ORDER BY embedding <=> $1 LIMIT $2`
+	query := `SELECT m.id, m.channel_id, m.date, m.encrypted_data, m.nonce, m.encrypted_context, m.nonce_context, c.username 
+              FROM messages m
+              LEFT JOIN channels c ON m.channel_id = c.id
+              WHERE m.embedding IS NOT NULL 
+              ORDER BY m.embedding <=> $1 LIMIT $2`
 	rows, err := r.DB.Query(query, formatVector(queryEmbedding), limit)
 	if err != nil {
 		return nil, err
@@ -92,7 +95,7 @@ func (r *Repository) SearchMessages(queryEmbedding []float32, limit int) ([]Mess
 	var messages []Message
 	for rows.Next() {
 		var m Message
-		if err := rows.Scan(&m.ID, &m.ChannelID, &m.Date, &m.EncryptedData, &m.Nonce, &m.EncryptedContext, &m.NonceContext); err != nil {
+		if err := rows.Scan(&m.ID, &m.ChannelID, &m.Date, &m.EncryptedData, &m.Nonce, &m.EncryptedContext, &m.NonceContext, &m.ChannelUsername); err != nil {
 			return nil, err
 		}
 		messages = append(messages, m)
@@ -127,7 +130,10 @@ func (r *Repository) GetChannels() ([]Channel, error) {
 }
 
 func (r *Repository) GetMessages(channelID int64) ([]Message, error) {
-	rows, err := r.DB.Query("SELECT id, channel_id, date, encrypted_data, nonce, encrypted_context, nonce_context FROM messages WHERE channel_id = $1 ORDER BY date DESC", channelID)
+	rows, err := r.DB.Query(`SELECT m.id, m.channel_id, m.date, m.encrypted_data, m.nonce, m.encrypted_context, m.nonce_context, c.username 
+                             FROM messages m 
+                             LEFT JOIN channels c ON m.channel_id = c.id 
+                             WHERE m.channel_id = $1 ORDER BY m.date DESC`, channelID)
 	if err != nil {
 		return nil, err
 	}
@@ -136,7 +142,7 @@ func (r *Repository) GetMessages(channelID int64) ([]Message, error) {
 	var messages []Message
 	for rows.Next() {
 		var m Message
-		if err := rows.Scan(&m.ID, &m.ChannelID, &m.Date, &m.EncryptedData, &m.Nonce, &m.EncryptedContext, &m.NonceContext); err != nil {
+		if err := rows.Scan(&m.ID, &m.ChannelID, &m.Date, &m.EncryptedData, &m.Nonce, &m.EncryptedContext, &m.NonceContext, &m.ChannelUsername); err != nil {
 			return nil, err
 		}
 		messages = append(messages, m)

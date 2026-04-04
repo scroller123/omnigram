@@ -186,13 +186,15 @@ func (app *App) EnrichNextBatch(ctx context.Context, dialogID int64) (bool, erro
 
 	offsetID := task.LastMessageID
 
-	// Resolve peer (could be cached in App for better performance)
+	// 1-1 chats, groups, and channels resolution
 	var inputPeer tg.InputPeerClass
-	dialogs, err := app.GetDialogs(ctx)
+	chats, users, err := app.GetDialogs(ctx)
 	if err != nil {
 		return false, err
 	}
-	for _, d := range dialogs {
+	
+	// Check chats (Groups/Channels)
+	for _, d := range chats {
 		switch c := d.(type) {
 		case *tg.Chat:
 			if c.ID == dialogID {
@@ -210,6 +212,27 @@ func (app *App) EnrichNextBatch(ctx context.Context, dialogID int64) (bool, erro
 			}
 		}
 	}
+
+	// Check users (1-1 Private Chats)
+	if inputPeer == nil {
+		for _, u := range users {
+			if user, ok := u.(*tg.User); ok {
+				if user.ID == dialogID {
+					inputPeer = &tg.InputPeerUser{UserID: user.ID, AccessHash: user.AccessHash}
+					username := ""
+					if user.Username != "" {
+						username = user.Username
+					}
+					fullName := strings.TrimSpace(user.FirstName + " " + user.LastName)
+					if fullName == "" {
+						fullName = "User " + fmt.Sprint(user.ID)
+					}
+					app.repo.InsertChannel(user.ID, fullName, username)
+				}
+			}
+		}
+	}
+
 	if inputPeer == nil {
 		return false, fmt.Errorf("dialog %d not found", dialogID)
 	}
@@ -231,16 +254,24 @@ func (app *App) EnrichNextBatch(ctx context.Context, dialogID int64) (bool, erro
 	}
 
 	var messages []tg.MessageClass
+	var usersFromBatch []tg.UserClass
+	var chatsFromBatch []tg.ChatClass
 	var totalMessages int
 	switch h := history.(type) {
 	case *tg.MessagesMessages:
 		messages = h.Messages
+		usersFromBatch = h.Users
+		chatsFromBatch = h.Chats
 		totalMessages = len(h.Messages)
 	case *tg.MessagesMessagesSlice:
 		messages = h.Messages
+		usersFromBatch = h.Users
+		chatsFromBatch = h.Chats
 		totalMessages = h.Count
 	case *tg.MessagesChannelMessages:
 		messages = h.Messages
+		usersFromBatch = h.Users
+		chatsFromBatch = h.Chats
 		totalMessages = h.Count
 	default:
 		return false, fmt.Errorf("unexpected history type: %T", history)
@@ -276,6 +307,44 @@ func (app *App) EnrichNextBatch(ctx context.Context, dialogID int64) (bool, erro
 		}
 	}
 
+	peerNames := make(map[string]string)
+	for _, u := range usersFromBatch {
+		if user, ok := u.(*tg.User); ok {
+			name := strings.TrimSpace(user.FirstName + " " + user.LastName)
+			if name == "" {
+				name = fmt.Sprintf("User%d", user.ID)
+			}
+			peerNames[fmt.Sprintf("user%d", user.ID)] = name
+		}
+	}
+	for _, c := range chatsFromBatch {
+		switch chat := c.(type) {
+		case *tg.Chat:
+			peerNames[fmt.Sprintf("chat%d", chat.ID)] = chat.Title
+		case *tg.Channel:
+			peerNames[fmt.Sprintf("channel%d", chat.ID)] = chat.Title
+		}
+	}
+
+	formatMsg := func(m *tg.Message) string {
+		author := "Unknown"
+		if m.FromID != nil {
+			switch p := m.FromID.(type) {
+			case *tg.PeerUser:
+				author = peerNames[fmt.Sprintf("user%d", p.UserID)]
+			case *tg.PeerChat:
+				author = peerNames[fmt.Sprintf("chat%d", p.ChatID)]
+			case *tg.PeerChannel:
+				author = peerNames[fmt.Sprintf("channel%d", p.ChannelID)]
+			}
+		}
+		if author == "" {
+			author = "Author"
+		}
+		ts := time.Unix(int64(m.Date), 0).Format("2006-01-02 15:04:05")
+		return fmt.Sprintf("[%s]: %s (%s)", author, m.Message, ts)
+	}
+
 	for i := 0; i < len(messageBuffer); i++ {
 		var past1, past2, past3, past4 *tg.Message
 		if i+1 < len(messageBuffer) { past1 = messageBuffer[i+1] }
@@ -284,11 +353,11 @@ func (app *App) EnrichNextBatch(ctx context.Context, dialogID int64) (bool, erro
 		if i+4 < len(messageBuffer) { past4 = messageBuffer[i+4] }
 
 		windowTexts := []string{}
-		if past4 != nil { windowTexts = append(windowTexts, past4.Message) }
-		if past3 != nil { windowTexts = append(windowTexts, past3.Message) }
-		if past2 != nil { windowTexts = append(windowTexts, past2.Message) }
-		if past1 != nil { windowTexts = append(windowTexts, past1.Message) }
-		windowTexts = append(windowTexts, messageBuffer[i].Message)
+		if past4 != nil { windowTexts = append(windowTexts, formatMsg(past4)) }
+		if past3 != nil { windowTexts = append(windowTexts, formatMsg(past3)) }
+		if past2 != nil { windowTexts = append(windowTexts, formatMsg(past2)) }
+		if past1 != nil { windowTexts = append(windowTexts, formatMsg(past1)) }
+		windowTexts = append(windowTexts, formatMsg(messageBuffer[i]))
 		
 		toProcess = append(toProcess, messageToProcess{
 			m:           messageBuffer[i],
@@ -407,9 +476,9 @@ func (app *App) GrabByInvite(ctx context.Context, hash string) error {
 	}
 }
 
-func (app *App) GetDialogs(ctx context.Context) ([]tg.ChatClass, error) {
+func (app *App) GetDialogs(ctx context.Context) ([]tg.ChatClass, []tg.UserClass, error) {
 	if app.api == nil {
-		return nil, errors.New("telegram API client is not initialized yet")
+		return nil, nil, errors.New("telegram API client is not initialized yet")
 	}
 	dialogs, err := app.api.MessagesGetDialogs(ctx, &tg.MessagesGetDialogsRequest{
 		OffsetDate: 0,
@@ -418,21 +487,23 @@ func (app *App) GetDialogs(ctx context.Context) ([]tg.ChatClass, error) {
 		Limit:      100, // Fetch the recent 100 dialogs
 	})
 	if err != nil {
-		return nil, fmt.Errorf("failed to get dialogs: %w", err)
+		return nil, nil, fmt.Errorf("failed to get dialogs: %w", err)
 	}
 
 	switch d := dialogs.(type) {
 	case *tg.MessagesDialogs:
-		return d.Chats, nil
+		return d.Chats, d.Users, nil
 	case *tg.MessagesDialogsSlice:
-		return d.Chats, nil
+		return d.Chats, d.Users, nil
+	case *tg.MessagesDialogsNotModified:
+		return nil, nil, nil
 	default:
-		return nil, fmt.Errorf("unsupported dialogs type: %T", dialogs)
+		return nil, nil, fmt.Errorf("unsupported dialogs type: %T", dialogs)
 	}
 }
 
 func (app *App) GrabByID(ctx context.Context, chatID int64) error {
-	chats, err := app.GetDialogs(ctx)
+	chats, users, err := app.GetDialogs(ctx)
 	if err != nil {
 		return err
 	}
@@ -450,5 +521,22 @@ func (app *App) GrabByID(ctx context.Context, chatID int64) error {
 		}
 	}
 
-	return fmt.Errorf("chat ID %d not found in recent dialogs", chatID)
+	for _, u := range users {
+		if user, ok := u.(*tg.User); ok {
+			if user.ID == chatID {
+				inputPeer := &tg.InputPeerUser{UserID: user.ID, AccessHash: user.AccessHash}
+				username := ""
+				if user.Username != "" {
+					username = user.Username
+				}
+				fullName := strings.TrimSpace(user.FirstName + " " + user.LastName)
+				if fullName == "" {
+					fullName = "User " + fmt.Sprint(user.ID)
+				}
+				return app.grabHistory(ctx, inputPeer, user.ID, fullName, username)
+			}
+		}
+	}
+
+	return fmt.Errorf("chat/user with ID %d not found in your dialogs", chatID)
 }

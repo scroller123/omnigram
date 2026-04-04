@@ -129,42 +129,140 @@ export const DialogsTable: React.FC<DialogsTableProps> = ({ onLogout }) => {
           <p>Loading dialogs...</p>
         </div>
       ) : (
-        <div className="table-container">
-          <table className="beautiful-table">
-            <thead>
-              <tr>
-                <th>Type</th>
-                <th>Title</th>
-                <th>Status</th>
-                <th>Action</th>
-              </tr>
-            </thead>
-            <tbody>
-              {dialogs.map((d) => (
-                <tr key={d.id}>
-                  <td>
-                    <div className="avatar-icon">
-                      {d.type === 'group' && <Users size={18} />}
-                      {d.type === 'supergroup/channel' && <MessageSquare size={18} />}
-                    </div>
-                  </td>
-                  <td className="font-medium text-light">{d.title}</td>
-                  <td>{renderStatus(d.id)}</td>
-                  <td>
-                    <button 
-                      onClick={() => handleEnrich(d.id)}
-                      disabled={tasks[d.id]?.status === 'processing'}
-                      className="action-button"
-                    >
-                      <Zap size={14} /> Enrich
-                    </button>
-                  </td>
+        <>
+          <div className="table-container">
+            <table className="beautiful-table">
+              <thead>
+                <tr>
+                  <th>Type</th>
+                  <th>Title</th>
+                  <th>Status</th>
+                  <th>Action</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {dialogs.map((d) => (
+                  <tr key={d.id}>
+                    <td>
+                      <div className="avatar-icon">
+                        {d.type === 'group' && <Users size={18} />}
+                        {d.type === 'supergroup/channel' && <MessageSquare size={18} />}
+                      </div>
+                    </td>
+                    <td className="font-medium text-light">{d.title}</td>
+                    <td>{renderStatus(d.id)}</td>
+                    <td>
+                      <button 
+                        onClick={() => handleEnrich(d.id)}
+                        disabled={tasks[d.id]?.status === 'processing'}
+                        className="action-button"
+                      >
+                        <Zap size={14} /> Enrich
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          <div className="search-container">
+            <h3>AI Search Across Enriched Messages</h3>
+            <SearchSection />
+          </div>
+        </>
+      )}
+    </div>
+  );
+};
+
+const SearchSection: React.FC = () => {
+  const [query, setQuery] = useState('');
+  const [results, setResults] = useState<any[]>([]);
+  const [analysis, setAnalysis] = useState('');
+  const [searching, setSearching] = useState(false);
+
+  const handleSearch = async () => {
+    if (!query.trim()) return;
+    setSearching(true);
+    setAnalysis('');
+    try {
+      const res = await apiFetch('/search', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ query })
+      });
+      if (!res.ok) throw new Error(await res.text());
+      const data = await res.json();
+      setResults(data.results || []);
+      setAnalysis(data.analysis || '');
+    } catch (err: any) {
+      alert('Search failed: ' + err.message);
+    } finally {
+      setSearching(false);
+    }
+  };
+
+  const getTgLink = (m: any) => {
+    // If we have a username, use it. Otherwise, use channel_id format for private chats
+    if (m.channel_username) {
+      return `https://t.me/${m.channel_username}/${m.id}`;
+    }
+    // Private chats use 'c/' prefix and stripped ID (removes -100 prefix)
+    const strippedId = String(m.channel_id).replace(/^-100/, '');
+    return `https://t.me/c/${strippedId}/${m.id}`;
+  };
+
+  return (
+    <div>
+      <div className="search-input-group">
+        <input 
+          type="text" 
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          placeholder="Ask anything about your messages..."
+          className="search-input"
+          onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
+        />
+        <button 
+          onClick={handleSearch} 
+          disabled={searching}
+          className="search-button"
+        >
+          {searching ? <div className="spinner-sm"></div> : <Zap size={16} />} Search
+        </button>
+      </div>
+
+      {analysis && (
+        <div className="analysis-card">
+          <div className="analysis-header">
+            <Zap size={18} /> AI Analysis
+          </div>
+          <div className="analysis-text">{analysis}</div>
         </div>
       )}
+
+      <div className="search-results">
+        {results.map((r, idx) => (
+          <div key={idx} className="result-card">
+            <div className="result-header">
+              <div className="result-meta">
+                <span>{new Date(r.date).toLocaleString()}</span>
+                <span>ID: {r.id}</span>
+              </div>
+              <a 
+                href={getTgLink(r)} 
+                target="_blank" 
+                rel="noopener noreferrer" 
+                className="tg-link"
+              >
+                View in Telegram
+              </a>
+            </div>
+            <div className="result-content">{r.context_text}</div>
+          </div>
+        ))}
+      </div>
     </div>
   );
 };

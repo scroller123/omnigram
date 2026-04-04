@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"strings"
 	"strconv"
 
 	"github.com/go-chi/chi/v5"
@@ -197,11 +198,6 @@ func (s *Server) GetDialogs(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	dialogs, err := app.GetDialogs(r.Context())
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
 
 	type DialogResponse struct {
 		ID    int64  `json:"id"`
@@ -209,13 +205,29 @@ func (s *Server) GetDialogs(w http.ResponseWriter, r *http.Request) {
 		Type  string `json:"type"`
 	}
 
+	chats, users, err := app.GetDialogs(r.Context())
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
 	var resp []DialogResponse
-	for _, chatClass := range dialogs {
+	for _, chatClass := range chats {
 		switch c := chatClass.(type) {
 		case *gotdtg.Chat:
 			resp = append(resp, DialogResponse{ID: c.ID, Title: c.Title, Type: "group"})
 		case *gotdtg.Channel:
 			resp = append(resp, DialogResponse{ID: c.ID, Title: c.Title, Type: "supergroup/channel"})
+		}
+	}
+
+	for _, userClass := range users {
+		if u, ok := userClass.(*gotdtg.User); ok {
+			name := strings.TrimSpace(u.FirstName + " " + u.LastName)
+			if name == "" {
+				name = "Private Chat (" + fmt.Sprint(u.ID) + ")"
+			}
+			resp = append(resp, DialogResponse{ID: u.ID, Title: name, Type: "user"})
 		}
 	}
 

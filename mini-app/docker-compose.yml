@@ -18,6 +18,22 @@ services:
     networks:
       - omnigram_miniapp_network
 
+  telegai_api:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    env_file:
+      - ../.env
+    environment:
+      - PORT=8080
+      - DB_HOST=telegai_postgres
+      - OLLAMA_URL=http://telegai_ollama:11434
+    depends_on:
+      - omnigram-app # Optional, but Nginx needs it
+    networks:
+      - omnigram_miniapp_network
+
   # certbot:
   #   image: certbot/certbot
   #   container_name: miniapp_certbot

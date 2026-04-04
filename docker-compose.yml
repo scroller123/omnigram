@@ -10,6 +10,8 @@ services:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
+    networks:
+      - omnigram_miniapp_network
     restart: unless-stopped
 
   ollama:
@@ -25,7 +27,13 @@ services:
       - "11434:11434"
     volumes:
       - ollama_data:/root/.ollama
+    networks:
+      - omnigram_miniapp_network
     restart: unless-stopped
+
+networks:
+  omnigram_miniapp_network:
+    external: true
 
 volumes:
   postgres_data:

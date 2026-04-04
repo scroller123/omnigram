@@ -258,12 +258,44 @@ func (app *App) EnrichNextBatch(ctx context.Context, dialogID int64) (bool, erro
 		app.repo.UpsertEnrichmentTask(dialogID, app.SessionID, "processing", totalMessages)
 	}
 
-	// Inner helper to process a message (without embedding yet)
-	type messageToProcess struct {
-		m           *tg.Message
-		contextText string
+	// Inner helper to process a message with 5-window context
+	processMessage := func(m *tg.Message, p2, p1, n1, n2 *tg.Message) error {
+		windowTexts := []string{}
+		if p2 != nil {
+			windowTexts = append(windowTexts, p2.Message)
+		}
+		if p1 != nil {
+			windowTexts = append(windowTexts, p1.Message)
+		}
+		windowTexts = append(windowTexts, m.Message)
+		if n1 != nil {
+			windowTexts = append(windowTexts, n1.Message)
+		}
+		if n2 != nil {
+			windowTexts = append(windowTexts, n2.Message)
+		}
+
+		contextText := strings.Join(windowTexts, "\n")
+
+		var embedding []float32
+		if app.Embedder != nil && m.Message != "" {
+			emb, err := app.Embedder.EmbedText(ctx, contextText)
+			log.Printf("Enrichment: Embedding message %d\n", m.ID)
+			if err != nil {
+				fmt.Printf("Enrichment: Error embedding message %d: %v\n", m.ID, err)
+			} else {
+				embedding = emb
+			}
+		}
+
+		encryptedData, nonce, err := auth.Encrypt(app.EncryptionKey, []byte(m.Message))
+		if err != nil {
+			return err
+		}
+
+		date := time.Unix(int64(m.Date), 0)
+		return app.repo.InsertMessage(m.ID, dialogID, date, embedding, encryptedData, nonce)
 	}
-	var toProcess []messageToProcess
 
 	var messageBuffer []*tg.Message
 	newOffsetID := offsetID
@@ -276,69 +308,30 @@ func (app *App) EnrichNextBatch(ctx context.Context, dialogID int64) (bool, erro
 		}
 	}
 
-	// Prepare data for batch embedding
+	processedCount := task.ProcessedMessages
 	for i := 0; i < len(messageBuffer); i++ {
 		var p2, p1, n1, n2 *tg.Message
-		if i >= 2 { p2 = messageBuffer[i-2] }
-		if i >= 1 { p1 = messageBuffer[i-1] }
-		if i+1 < len(messageBuffer) { n1 = messageBuffer[i+1] }
-		if i+2 < len(messageBuffer) { n2 = messageBuffer[i+2] }
-
-		windowTexts := []string{}
-		if p2 != nil { windowTexts = append(windowTexts, p2.Message) }
-		if p1 != nil { windowTexts = append(windowTexts, p1.Message) }
-		windowTexts = append(windowTexts, messageBuffer[i].Message)
-		if n1 != nil { windowTexts = append(windowTexts, n1.Message) }
-		if n2 != nil { windowTexts = append(windowTexts, n2.Message) }
-		
-		toProcess = append(toProcess, messageToProcess{
-			m:           messageBuffer[i],
-			contextText: strings.Join(windowTexts, "\n"),
-		})
-	}
-
-	// Batch embedding
-	var embeddings [][]float32
-	if app.Embedder != nil && len(toProcess) > 0 {
-		texts := make([]string, len(toProcess))
-		for i := range toProcess {
-			texts[i] = toProcess[i].contextText
+		if i >= 2 {
+			p2 = messageBuffer[i-2]
 		}
-		
-		log.Printf("Enrichment: Batch embedding %d messages for dialog %d", len(texts), dialogID)
-		embs, err := app.Embedder.EmbedBatch(ctx, texts)
-		if err != nil {
-			log.Printf("Enrichment: Batch embedding failed: %v. Falling back to individual embedding.", err)
-			// Fallback logic could go here, but for now we'll just fail the batch
-			app.repo.UpdateEnrichmentProgress(dialogID, app.SessionID, task.ProcessedMessages, newOffsetID, "failed", err.Error())
-			return false, err
+		if i >= 1 {
+			p1 = messageBuffer[i-1]
 		}
-		embeddings = embs
-	}
-
-	processedCount := task.ProcessedMessages
-	for i, item := range toProcess {
-		var embedding []float32
-		if i < len(embeddings) {
-			embedding = embeddings[i]
+		if i+1 < len(messageBuffer) {
+			n1 = messageBuffer[i+1]
+		}
+		if i+2 < len(messageBuffer) {
+			n2 = messageBuffer[i+2]
 		}
 
-		encryptedData, nonce, err := auth.Encrypt(app.EncryptionKey, []byte(item.m.Message))
-		if err != nil {
-			log.Printf("Message encryption failed: %v", err)
-			app.repo.UpdateEnrichmentProgress(dialogID, app.SessionID, processedCount, item.m.ID, "failed", err.Error())
-			return false, err
-		}
-
-		date := time.Unix(int64(item.m.Date), 0)
-		if err := app.repo.InsertMessage(item.m.ID, dialogID, date, embedding, encryptedData, nonce); err != nil {
-			log.Printf("Message processing failed (session %s, dialog %d, msg %d): %v", app.SessionID, dialogID, item.m.ID, err)
-			app.repo.UpdateEnrichmentProgress(dialogID, app.SessionID, processedCount, item.m.ID, "failed", err.Error())
+		if err := processMessage(messageBuffer[i], p2, p1, n1, n2); err != nil {
+			log.Printf("Message processing failed (session %s, dialog %d, msg %d): %v", app.SessionID, dialogID, messageBuffer[i].ID, err)
+			app.repo.UpdateEnrichmentProgress(dialogID, app.SessionID, processedCount, messageBuffer[i].ID, "failed", err.Error())
 			return false, err
 		}
 		processedCount++
 		// Update progress after each message for smoother tracking
-		app.repo.UpdateEnrichmentProgress(dialogID, app.SessionID, processedCount, item.m.ID, "processing", "")
+		app.repo.UpdateEnrichmentProgress(dialogID, app.SessionID, processedCount, messageBuffer[i].ID, "processing", "")
 	}
 
 	status := "processing"

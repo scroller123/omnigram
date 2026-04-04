@@ -14,7 +14,7 @@ const getSessionID = () => {
 export const apiFetch = async (path: string, options: RequestInit = {}) => {
   const token = localStorage.getItem('tg_jwt_token');
   const sessionID = getSessionID();
-  
+
   const headers = {
     'Content-Type': 'application/json',
     'X-Session-ID': sessionID,
@@ -22,7 +22,7 @@ export const apiFetch = async (path: string, options: RequestInit = {}) => {
     ...(options.headers || {}),
   };
 
-  const response = await fetch(`http://localhost:8080${BASE_URL}${path}`, {
+  const response = await fetch(`${BASE_URL}${path}`, {
     ...options,
     headers,
   });
@@ -43,20 +43,20 @@ export const authApi = {
     if (!res.ok) throw new Error(await res.text());
     return res.json(); // { phone_code_hash }
   },
-  
+
   verifyCode: async (phone: string, code: string, phoneCodeHash: string) => {
     const res = await apiFetch('/auth/verify-code', {
       method: 'POST',
       body: JSON.stringify({ phone, code, phone_code_hash: phoneCodeHash }),
     });
-    
+
     if (res.status === 403) {
       const data = await res.json();
       if (data.error === '2fa_required') {
         return { requires_2fa: true };
       }
     }
-    
+
     if (!res.ok) throw new Error(await res.text());
     const data = await res.json();
     localStorage.setItem('tg_jwt_token', data.token);

@@ -13,7 +13,7 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
     networks:
-      - omnigram_miniapp_network
+      - omniram-app_omnigram_miniapp_network
     restart: unless-stopped
 
   ollama:
@@ -30,11 +30,11 @@ services:
     volumes:
       - ollama_data:/root/.ollama
     networks:
-      - omnigram_miniapp_network
+      - omniram-app_omnigram_miniapp_network
     restart: unless-stopped
 
 networks:
-  omnigram_miniapp_network:
+  omniram-app_omnigram_miniapp_network:
     external: true
 
 volumes:

@@ -17,6 +17,11 @@ services:
   ollama:
     image: ollama/ollama:latest
     container_name: telegai_ollama
+    environment:
+      OLLAMA_VULKAN: 1
+      OLLAMA_NUM_PARALLEL: 4
+      OLLAMA_CONTEXT_LENGTH: 2048
+      OLLAMA_KEEP_ALIVE: "-1"
     ports:
       - "11434:11434"
     volumes:

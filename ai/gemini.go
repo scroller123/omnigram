@@ -11,6 +11,7 @@ import (
 
 type Embedder interface {
 	EmbedText(ctx context.Context, text string) ([]float32, error)
+	EmbedBatch(ctx context.Context, texts []string) ([][]float32, error)
 }
 
 type GeminiClient struct {
@@ -31,11 +32,6 @@ func (c *GeminiClient) Close() {
 
 func (c *GeminiClient) EmbedText(ctx context.Context, text string) ([]float32, error) {
 	model := c.client.EmbeddingModel("gemini-embedding-001")
-	// Some versions of the SDK support OutputDimensionality.
-	// If this causes a build error, we can remove it and truncate manually.
-	// However, we want the API to do it if possible for efficiency.
-	// Let's try to set it via the task-specific config or model field if available.
-	// For now, let's just use the model name and truncate if the returned length is > 768.
 	res, err := model.EmbedContent(ctx, genai.Text(text))
 	if err != nil {
 		return nil, err
@@ -46,6 +42,29 @@ func (c *GeminiClient) EmbedText(ctx context.Context, text string) ([]float32, e
 		return val[:768], nil
 	}
 	return val, nil
+}
+
+func (c *GeminiClient) EmbedBatch(ctx context.Context, texts []string) ([][]float32, error) {
+	model := c.client.EmbeddingModel("gemini-embedding-001")
+	batch := model.NewBatch()
+	for _, t := range texts {
+		batch.AddContent(genai.Text(t))
+	}
+
+	res, err := model.BatchEmbedContents(ctx, batch)
+	if err != nil {
+		return nil, err
+	}
+
+	var results [][]float32
+	for _, emb := range res.Embeddings {
+		val := emb.Values
+		if len(val) > 768 {
+			val = val[:768]
+		}
+		results = append(results, val)
+	}
+	return results, nil
 }
 
 func (c *GeminiClient) AnalyzeMessages(ctx context.Context, query string, messages []string) (string, error) {

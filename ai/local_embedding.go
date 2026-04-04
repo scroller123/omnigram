@@ -21,8 +21,8 @@ func NewLocalEmbeddingClient(url, model string) *LocalEmbeddingClient {
 }
 
 type ollamaEmbeddingRequest struct {
-	Model string `json:"model"`
-	Input string `json:"input"`
+	Model string      `json:"model"`
+	Input interface{} `json:"input"` // Can be string or []string
 }
 
 type ollamaEmbeddingResponse struct {
@@ -61,4 +61,33 @@ func (c *LocalEmbeddingClient) EmbedText(ctx context.Context, text string) ([]fl
 	}
 
 	return res.Embeddings[0], nil
+}
+func (c *LocalEmbeddingClient) EmbedBatch(ctx context.Context, texts []string) ([][]float32, error) {
+	reqBody, _ := json.Marshal(ollamaEmbeddingRequest{
+		Model: c.Model,
+		Input: texts,
+	})
+
+	req, err := http.NewRequestWithContext(ctx, "POST", c.URL+"/api/embed", bytes.NewBuffer(reqBody))
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("ollama error: status %d", resp.StatusCode)
+	}
+
+	var res ollamaEmbeddingResponse
+	if err := json.NewDecoder(resp.Body).Decode(&res); err != nil {
+		return nil, err
+	}
+
+	return res.Embeddings, nil
 }

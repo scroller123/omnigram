@@ -21,6 +21,7 @@ type Manager struct {
 	repo             *db.Repository
 	gemini           *ai.GeminiClient
 	embedder         ai.Embedder
+	activeTasks      sync.Map // Key: string (session_id+dialog_id)
 }
 
 func NewManager(ctx context.Context, apiID int, apiHash string, encryptionSecret []byte, repo *db.Repository, gemini *ai.GeminiClient, embedder ai.Embedder) *Manager {
@@ -94,8 +95,17 @@ func (m *Manager) processBatch() {
 	}
 
 	for _, t := range tasks {
-		// Start a short-lived goroutine for this batch
-		go func(task db.EnrichmentTask) {
+		// Unique key for this dialog+session
+		taskKey := fmt.Sprintf("%s_%d", t.SessionID, t.DialogID)
+		
+		// Skip if this specific task is already being processed by another worker goroutine
+		if _, loaded := m.activeTasks.LoadOrStore(taskKey, true); loaded {
+			continue
+		}
+
+		go func(task db.EnrichmentTask, key string) {
+			defer m.activeTasks.Delete(key)
+
 			app, err := m.GetApp(m.ctx, task.SessionID)
 			if err != nil {
 				return
@@ -108,7 +118,7 @@ func (m *Manager) processBatch() {
 
 			// Process just one batch
 			app.EnrichNextBatch(m.ctx, task.DialogID)
-		}(t)
+		}(t, taskKey)
 	}
 }
 

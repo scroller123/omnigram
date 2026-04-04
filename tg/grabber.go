@@ -246,6 +246,8 @@ func (app *App) EnrichNextBatch(ctx context.Context, dialogID int64) (bool, erro
 		return false, fmt.Errorf("unexpected history type: %T", history)
 	}
 
+	log.Printf("Fetched %d messages for dialog %d (offset %d)", len(messages), dialogID, offsetID)
+
 	if len(messages) == 0 {
 		app.repo.UpdateEnrichmentProgress(dialogID, app.SessionID, task.ProcessedMessages, offsetID, "completed", "")
 		return true, nil
@@ -278,6 +280,7 @@ func (app *App) EnrichNextBatch(ctx context.Context, dialogID int64) (bool, erro
 		var embedding []float32
 		if app.Embedder != nil && m.Message != "" {
 			emb, err := app.Embedder.EmbedText(ctx, contextText)
+			log.Printf("Enrichment: Embedding message %d\n", m.ID)
 			if err != nil {
 				fmt.Printf("Enrichment: Error embedding message %d: %v\n", m.ID, err)
 			} else {

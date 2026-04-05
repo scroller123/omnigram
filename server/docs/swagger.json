@@ -1,0 +1,439 @@
+{
+    "swagger": "2.0",
+    "info": {
+        "description": "API for managing Telegram channel grabs.",
+        "title": "Omnigram API",
+        "contact": {},
+        "version": "1.0"
+    },
+    "host": "localhost:8080",
+    "basePath": "/",
+    "paths": {
+        "/api/channels": {
+            "get": {
+                "description": "Get a list of all channels that have been grabbed",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "channels"
+                ],
+                "summary": "List all grabbed channels",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/db.Channel"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/channels/{id}/messages": {
+            "get": {
+                "description": "Get a list of messages for a specific channel ID",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "messages"
+                ],
+                "summary": "List messages for a channel",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Channel ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/db.Message"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/dialogs": {
+            "get": {
+                "description": "Get a list of up to 100 recent dialogs to find Chat IDs",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "dialogs"
+                ],
+                "summary": "List recent dialogs",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "type": "object"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/enrich": {
+            "post": {
+                "description": "Starts enrichment process (encryption + windowed embeddings) in background",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "channels"
+                ],
+                "summary": "Enrich a dialog",
+                "parameters": [
+                    {
+                        "description": "Dialog ID",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/api.EnrichRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "202": {
+                        "description": "Started enrichment in background",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/enrich/tasks": {
+            "get": {
+                "description": "Get a list of all enrichment tasks and their progress for current session",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "channels"
+                ],
+                "summary": "List enrichment tasks",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/db.EnrichmentTask"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/grab": {
+            "post": {
+                "description": "Starts downloading channel history in the background",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "channels"
+                ],
+                "summary": "Grab a channel",
+                "parameters": [
+                    {
+                        "description": "Channel Username",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/api.GrabRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "202": {
+                        "description": "Started grabbing in background",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/grab_by_id": {
+            "post": {
+                "description": "Starts downloading channel/group history in the background by ID",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "channels"
+                ],
+                "summary": "Grab a group by ID",
+                "parameters": [
+                    {
+                        "description": "Chat ID",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/api.GrabByIDRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "202": {
+                        "description": "Started grabbing by ID in background",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/grab_invite": {
+            "post": {
+                "description": "Joins and starts downloading channel/group history in the background by invite link hash",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "channels"
+                ],
+                "summary": "Grab a group by invite hash",
+                "parameters": [
+                    {
+                        "description": "Invite Hash (e.g. AbCdEfGhIjK from t.me/+AbCdEfGhIjK)",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/api.GrabByInviteRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "202": {
+                        "description": "Started grabbing by Invite in background",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/search": {
+            "post": {
+                "description": "Performs vector search for relevant messages and uses Gemini to analyze them",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "search"
+                ],
+                "summary": "Search and analyze messages",
+                "parameters": [
+                    {
+                        "description": "Search Query",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/api.SearchRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/api.SearchResponse"
+                        }
+                    }
+                }
+            }
+        }
+    },
+    "definitions": {
+        "api.EnrichRequest": {
+            "type": "object",
+            "properties": {
+                "dialog_id": {
+                    "type": "integer"
+                }
+            }
+        },
+        "api.GrabByIDRequest": {
+            "type": "object",
+            "properties": {
+                "chat_id": {
+                    "type": "integer"
+                }
+            }
+        },
+        "api.GrabByInviteRequest": {
+            "type": "object",
+            "properties": {
+                "hash": {
+                    "type": "string"
+                }
+            }
+        },
+        "api.GrabRequest": {
+            "type": "object",
+            "properties": {
+                "username": {
+                    "type": "string"
+                }
+            }
+        },
+        "api.SearchRequest": {
+            "type": "object",
+            "properties": {
+                "query": {
+                    "type": "string"
+                }
+            }
+        },
+        "api.SearchResponse": {
+            "type": "object",
+            "properties": {
+                "analysis": {
+                    "type": "string"
+                },
+                "results": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/db.Message"
+                    }
+                }
+            }
+        },
+        "db.Channel": {
+            "type": "object",
+            "properties": {
+                "id": {
+                    "type": "integer"
+                },
+                "title": {
+                    "type": "string"
+                },
+                "username": {
+                    "type": "string"
+                }
+            }
+        },
+        "db.EnrichmentTask": {
+            "type": "object",
+            "properties": {
+                "dialog_id": {
+                    "type": "integer"
+                },
+                "error_message": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "last_message_id": {
+                    "type": "integer"
+                },
+                "processed_messages": {
+                    "type": "integer"
+                },
+                "session_id": {
+                    "type": "string"
+                },
+                "status": {
+                    "type": "string"
+                },
+                "total_messages": {
+                    "type": "integer"
+                },
+                "updated_at": {
+                    "type": "string"
+                }
+            }
+        },
+        "db.Message": {
+            "type": "object",
+            "properties": {
+                "channel_id": {
+                    "type": "integer"
+                },
+                "channel_username": {
+                    "type": "string"
+                },
+                "context_text": {
+                    "type": "string"
+                },
+                "date": {
+                    "type": "string"
+                },
+                "embedding": {
+                    "type": "array",
+                    "items": {
+                        "type": "number"
+                    }
+                },
+                "encrypted_context": {
+                    "type": "array",
+                    "items": {
+                        "type": "integer"
+                    }
+                },
+                "encrypted_data": {
+                    "type": "array",
+                    "items": {
+                        "type": "integer"
+                    }
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "nonce": {
+                    "type": "array",
+                    "items": {
+                        "type": "integer"
+                    }
+                },
+                "nonce_context": {
+                    "type": "array",
+                    "items": {
+                        "type": "integer"
+                    }
+                },
+                "text": {
+                    "type": "string"
+                }
+            }
+        }
+    }
+}

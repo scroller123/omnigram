@@ -1,0 +1,289 @@
+basePath: /
+definitions:
+  api.EnrichRequest:
+    properties:
+      dialog_id:
+        type: integer
+    type: object
+  api.GrabByIDRequest:
+    properties:
+      chat_id:
+        type: integer
+    type: object
+  api.GrabByInviteRequest:
+    properties:
+      hash:
+        type: string
+    type: object
+  api.GrabRequest:
+    properties:
+      username:
+        type: string
+    type: object
+  api.SearchRequest:
+    properties:
+      query:
+        type: string
+    type: object
+  api.SearchResponse:
+    properties:
+      analysis:
+        type: string
+      results:
+        items:
+          $ref: '#/definitions/db.Message'
+        type: array
+    type: object
+  db.Channel:
+    properties:
+      id:
+        type: integer
+      title:
+        type: string
+      username:
+        type: string
+    type: object
+  db.EnrichmentTask:
+    properties:
+      dialog_id:
+        type: integer
+      error_message:
+        type: string
+      id:
+        type: integer
+      last_message_id:
+        type: integer
+      processed_messages:
+        type: integer
+      session_id:
+        type: string
+      status:
+        type: string
+      total_messages:
+        type: integer
+      updated_at:
+        type: string
+    type: object
+  db.Message:
+    properties:
+      channel_id:
+        type: integer
+      channel_username:
+        type: string
+      context_text:
+        type: string
+      date:
+        type: string
+      embedding:
+        items:
+          type: number
+        type: array
+      encrypted_context:
+        items:
+          type: integer
+        type: array
+      encrypted_data:
+        items:
+          type: integer
+        type: array
+      id:
+        type: integer
+      nonce:
+        items:
+          type: integer
+        type: array
+      nonce_context:
+        items:
+          type: integer
+        type: array
+      text:
+        type: string
+    type: object
+host: localhost:8080
+info:
+  contact: {}
+  description: API for managing Telegram channel grabs.
+  title: Omnigram API
+  version: "1.0"
+paths:
+  /api/channels:
+    get:
+      description: Get a list of all channels that have been grabbed
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/db.Channel'
+            type: array
+      summary: List all grabbed channels
+      tags:
+      - channels
+  /api/channels/{id}/messages:
+    get:
+      description: Get a list of messages for a specific channel ID
+      parameters:
+      - description: Channel ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/db.Message'
+            type: array
+      summary: List messages for a channel
+      tags:
+      - messages
+  /api/dialogs:
+    get:
+      description: Get a list of up to 100 recent dialogs to find Chat IDs
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              type: object
+            type: array
+      summary: List recent dialogs
+      tags:
+      - dialogs
+  /api/enrich:
+    post:
+      consumes:
+      - application/json
+      description: Starts enrichment process (encryption + windowed embeddings) in
+        background
+      parameters:
+      - description: Dialog ID
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/api.EnrichRequest'
+      produces:
+      - application/json
+      responses:
+        "202":
+          description: Started enrichment in background
+          schema:
+            type: string
+      summary: Enrich a dialog
+      tags:
+      - channels
+  /api/enrich/tasks:
+    get:
+      description: Get a list of all enrichment tasks and their progress for current
+        session
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/db.EnrichmentTask'
+            type: array
+      summary: List enrichment tasks
+      tags:
+      - channels
+  /api/grab:
+    post:
+      consumes:
+      - application/json
+      description: Starts downloading channel history in the background
+      parameters:
+      - description: Channel Username
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/api.GrabRequest'
+      produces:
+      - application/json
+      responses:
+        "202":
+          description: Started grabbing in background
+          schema:
+            type: string
+      summary: Grab a channel
+      tags:
+      - channels
+  /api/grab_by_id:
+    post:
+      consumes:
+      - application/json
+      description: Starts downloading channel/group history in the background by ID
+      parameters:
+      - description: Chat ID
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/api.GrabByIDRequest'
+      produces:
+      - application/json
+      responses:
+        "202":
+          description: Started grabbing by ID in background
+          schema:
+            type: string
+      summary: Grab a group by ID
+      tags:
+      - channels
+  /api/grab_invite:
+    post:
+      consumes:
+      - application/json
+      description: Joins and starts downloading channel/group history in the background
+        by invite link hash
+      parameters:
+      - description: Invite Hash (e.g. AbCdEfGhIjK from t.me/+AbCdEfGhIjK)
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/api.GrabByInviteRequest'
+      produces:
+      - application/json
+      responses:
+        "202":
+          description: Started grabbing by Invite in background
+          schema:
+            type: string
+      summary: Grab a group by invite hash
+      tags:
+      - channels
+  /api/search:
+    post:
+      consumes:
+      - application/json
+      description: Performs vector search for relevant messages and uses Gemini to
+        analyze them
+      parameters:
+      - description: Search Query
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/api.SearchRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/api.SearchResponse'
+      summary: Search and analyze messages
+      tags:
+      - search
+swagger: "2.0"

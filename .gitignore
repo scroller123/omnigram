@@ -1,0 +1,8 @@
+.env
+.idea
+server/omnigram
+node_modules
+logs
+*.log
+mini-app/node_modules/
+mini-app/dist/

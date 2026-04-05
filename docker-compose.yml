@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   omnigram_api:
     build:

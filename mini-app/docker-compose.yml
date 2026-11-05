@@ -2,6 +2,11 @@ version: '3.8'
 
 services:
   omnigram-app:
+    logging:
+      driver: json-file
+      options:
+        max-size: "50m"
+        max-file: "3"
     build:
       context: .
       dockerfile: Dockerfile
@@ -19,6 +24,11 @@ services:
       - omnigram_miniapp_network
 
   telegai_api:
+    logging:
+      driver: json-file
+      options:
+        max-size: "50m"
+        max-file: "3"
     build:
       context: ..
       dockerfile: Dockerfile

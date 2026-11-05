@@ -1,5 +1,10 @@
 services:
   db:
+    logging:
+      driver: json-file
+      options:
+        max-size: "50m"
+        max-file: "3"
     image: pgvector/pgvector:pg15
     container_name: telegai_postgres
     env_file:
@@ -17,6 +22,11 @@ services:
     restart: unless-stopped
 
   ollama:
+    logging:
+      driver: json-file
+      options:
+        max-size: "50m"
+        max-file: "3"
     image: ollama/ollama:0.18.0
     container_name: telegai_ollama
     environment:
